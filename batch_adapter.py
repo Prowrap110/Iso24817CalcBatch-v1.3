@@ -5,7 +5,6 @@ import math
 from typing import Any
 
 from batch_schema import (
-    APPROVED_CLOTH_WIDTHS_MM,
     B31G_DETAIL_SCHEMA,
     B31G_DETAIL_SCHEMA_VERSION,
     BatchInfo,
@@ -69,7 +68,8 @@ _INSTALLABLE_OUTPUTS = (
     'Required Overlap [mm]',
     'Taper Length [mm]',
     'Total Repair Length [mm]',
-    'Cloth Band Count',
+    '500 mm Cloth Band Count',
+    '300 mm Cloth Band Count',
     'Procurement Axial Length [mm]',
     'Fabric Area [m2]',
     'Epoxy Mass [kg]',
@@ -121,7 +121,10 @@ def calculate_row(
             component_type=values['Component Type'],
             cyclic_derating_factor=values['Cyclic Derating Factor'],
             axial_load_case=values['Axial Load Case'],
-            cloth_width_mm=values['Prowrap CF Cloth Width [mm]'],
+            cloth_widths_mm=(
+                values['Prowrap CF Cloth Width 1 [mm]'],
+                values['Prowrap CF Cloth Width 2 [mm]'],
+            ),
             allow_unqualified_temperature=True,
             defect_length_basis=defect_length_basis,
             individual_defects=individual_defects,
@@ -143,7 +146,10 @@ def calculate_row(
             result = apply_type_a_class3_result_to_repair(
                 result,
                 type_a,
-                cloth_width_mm=values['Prowrap CF Cloth Width [mm]'],
+                cloth_widths_mm=(
+                    values['Prowrap CF Cloth Width 1 [mm]'],
+                    values['Prowrap CF Cloth Width 2 [mm]'],
+                ),
             )
     except ValueError as error:
         return RowCalculation(
@@ -154,10 +160,7 @@ def calculate_row(
             error_message=str(error),
         )
 
-    extra_warnings = (
-        _cloth_width_warnings(values['Prowrap CF Cloth Width [mm]'])
-        + _type_a_check_warnings(values, result)
-    )
+    extra_warnings = _type_a_check_warnings(values, result)
     warnings = tuple(result['compliance_warnings']) + extra_warnings
     status = classify_result(result, extra_warnings)
     candidate_calculations = _candidate_calculations(result)
@@ -253,15 +256,6 @@ def _type_a_check_warnings(values: dict[str, Any], result: dict[str, Any]) -> tu
     return ()
 
 
-def _cloth_width_warnings(cloth_width_mm: float) -> tuple[str, ...]:
-    if cloth_width_mm in APPROVED_CLOTH_WIDTHS_MM:
-        return ()
-    return (
-        f'Prowrap CF cloth width {cloth_width_mm:g} mm is not an approved '
-        '300 mm or 500 mm configuration; confirm product approval before installation.',
-    )
-
-
 def _map_outputs(
     result: dict[str, Any],
     warnings: tuple[str, ...],
@@ -298,7 +292,8 @@ def _map_outputs(
         'Required Overlap [mm]': result['overlap_length'],
         'Taper Length [mm]': result['taper_length'],
         'Total Repair Length [mm]': result['iso_length'],
-        'Cloth Band Count': result['num_bands'],
+        '500 mm Cloth Band Count': result['num_bands_500'],
+        '300 mm Cloth Band Count': result['num_bands_300'],
         'Procurement Axial Length [mm]': result['proc_length'],
         'Fabric Area [m2]': result['optimized_sqm'],
         'Epoxy Mass [kg]': result['epoxy_kg'],

@@ -24,11 +24,11 @@ def test_app_starts_with_template_and_upload_actions():
     app = AppTest.from_file(Path(__file__).parents[1] / 'app.py').run()
 
     assert not app.exception
-    assert any('PROWRAP CalcBatch v1.2' in title.value for title in app.title)
+    assert any('PROWRAP CalcBatch v1.3' in title.value for title in app.title)
     assert any(
         'Download Excel Template' in button.label for button in app.download_button
     )
-    assert batch_app._TEMPLATE_FILENAME == 'PROWRAP_CalcBatch_v1.2_Template.xlsx'
+    assert batch_app._TEMPLATE_FILENAME == 'PROWRAP_CalcBatch_v1.3_Template.xlsx'
     assert any('Upload workbook' in heading.value for heading in app.subheader)
 
 
@@ -47,7 +47,7 @@ def test_app_lists_canonical_dents_and_requires_the_current_template():
         for caption in captions
     )
     assert any(
-        'Download and use the current PROWRAP CalcBatch v1.2 150/150 template.'
+        'Download and use the current PROWRAP CalcBatch v1.3 150/150 template.'
         in caption
         for caption in captions
     )
@@ -60,6 +60,8 @@ def test_app_states_compact_row_and_commercial_contract():
     rendered = '\n'.join(item.value for item in (*app.markdown, *app.caption))
 
     assert 'up to 150 continuous-repair rows and 150 linked individual-defect rows' in rendered
+    assert '21 controlled input columns and 10 controlled result columns' in rendered
+    assert '300-only, 500-only, or optimized mixed-width procurement' in rendered
     assert 'Quantity is editable' in rendered
     assert 'Total Amount is a controlled Price x Quantity formula' in rendered
 
@@ -218,8 +220,8 @@ def test_app_previews_linked_manual_counts_and_explains_linkage():
     assert len(app.dataframe) == 2
 
 
-def test_processed_v12_download_uses_v12_results_filename():
-    """The v1.2 result must never look like an older CalcBatch download."""
+def test_processed_v13_download_uses_v13_results_filename():
+    """The v1.3 result must never look like an older CalcBatch download."""
     app = AppTest.from_file(Path(__file__).parents[1] / 'app.py').run(timeout=10)
     app.file_uploader[0].upload(
         'batch.xlsx', workbook_bytes_with_rows([valid_row_values()]),
@@ -232,5 +234,5 @@ def test_processed_v12_download_uses_v12_results_filename():
         for button in app.download_button
     )
     assert app.session_state['processed_workbook_name'].startswith(
-        'PROWRAP_CalcBatch_v1.2_Results_'
+        'PROWRAP_CalcBatch_v1.3_Results_'
     )

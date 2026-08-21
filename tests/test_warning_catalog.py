@@ -104,5 +104,5 @@ def test_warning_register_identifies_main_and_detail_rows():
     }
 
     assert warning_rows['W013'] == 'Main 2; Individual Defects 2, 3'
-    assert workbook['Summary']['B24'].value == '1.2.0'
-    assert workbook['Summary']['B25'].value == '91b68d6'
+    assert workbook['Summary']['B24'].value == '1.3.0'
+    assert workbook['Summary']['B25'].value == 'da83373'

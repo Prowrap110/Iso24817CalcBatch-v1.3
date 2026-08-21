@@ -1,0 +1,35 @@
+{
+  "product": {
+    "name": "PROWRAP CalcBatch v1.3",
+    "version": "1.3.0",
+    "repository": "Prowrap110/Iso24817CalcBatch-v1.3",
+    "branch": "release/v1.3.0",
+    "template_filename": "PROWRAP_CalcBatch_v1.3_Template.xlsx",
+    "results_prefix": "PROWRAP_CalcBatch_v1.3_Results_"
+  },
+  "accepted_single_case_source": {
+    "repository": "Prowrap110/Iso24817Calcv1.3",
+    "commit": "da83373d648694f50b8a974ff6071a73ceec2089",
+    "short_revision": "da83373"
+  },
+  "batch_source": {
+    "imported_v12_commit": "5b916df79c6e24462c4cd9194ce8938fafcb70e3",
+    "release_preparation_base": "420a40dc84e9f787ff24c0862ec9307729b929d2"
+  },
+  "accepted_engine_module_sha256": {
+    "band_procurement.py": "ba5d67eba3be6502e4d3ddbf475ca0189b7a9660ba9508429d77498de240e0bc",
+    "prowrap_calculations.py": "ea191add86766cd79fc5ec9f6e9deed8b950b1d66bd3318d89406c2846be9eca",
+    "prowrap_materials.py": "213064ff8d1a7d06646b3172b90caa79704f11742cef0ad58dbfc3ecd101320e"
+  },
+  "active_engine_module_sha256": {
+    "engine/prowrap_calculations.py": "1ffbbd7397aab134aad6461a042b18342d5b46c1e86d658215e05a616d23bcfe"
+  },
+  "batch_module_sha256": {
+    "app.py": "d90b119c93f4c3b5f65ff716e8ed18e121a8e171ea088a8ba2975b520c3c58d8",
+    "batch_schema.py": "89116763508f47b946fa9fcada29a7a1eb99290e04cf69d79f096d4500cdec43",
+    "cost_calculation.py": "3ee7d7436edf19e8d669d320bd2d5cf73269ef697d6f8ad36a54ad5a13e5f1ea",
+    "scripts/create_acceptance_workbook.py": "2cea3b7a4262e7735f58bdeb06369074b00409934ca99996dba895c77e3dd2c4",
+    "workbook_processor.py": "89b2246991fe52705ed4129157adb861704d4b5142d887339e2d72513d8e7e49",
+    "workbook_template.py": "fd04e0f8d8d77dadca14a38b7af4b0288ee5e2523dd79c50c06ee1f9623ef0b9"
+  }
+}

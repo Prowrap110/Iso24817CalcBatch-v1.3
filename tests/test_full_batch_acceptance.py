@@ -1,4 +1,4 @@
-"""End-to-end release acceptance for the separate linked-corrosion batch app."""
+"""End-to-end release acceptance for the isolated CalcBatch v1.3 app."""
 
 from datetime import UTC, datetime
 from io import BytesIO
@@ -7,42 +7,28 @@ from pathlib import Path
 from openpyxl import load_workbook
 import pytest
 
-from batch_schema import (
-    DETAIL_INPUT_HEADERS,
-    DETAIL_OUTPUT_HEADERS,
-    INPUT_HEADERS,
-    OUTPUT_HEADERS,
-)
-from tests.helpers import legacy_workbook_bytes_with_rows, valid_row_values
+from batch_schema import DETAIL_INPUT_HEADERS, INPUT_HEADERS, OUTPUT_HEADERS
+from cost_calculation import COST_SOURCE_HEADERS, cost_formula, price_formula, total_amount_formula
 from workbook_processor import process_workbook
 
 
-FIXED_TIME = datetime(2026, 8, 20, 12, 0, tzinfo=UTC)
+FIXED_TIME = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
 EXPECTED_SHEETS = [
     'Batch Information', 'Batch Input & Results', 'Individual Defects',
     'Cost Calculation', 'Warnings', 'Summary', 'Instructions', 'Lists',
 ]
-EXPECTED_COST_SOURCE_HEADERS = (
-    'Pipe OD [mm]',
-    'Nominal Wall [mm]',
-    'Pipe Yield [MPa]',
-    'Design Pressure [bar]',
-    'Operating Temperature [degC]',
-    'Mechanism',
-    'Defect Location',
-    'Defect Length [mm]',
-    'Remaining Wall [mm]',
-    'Design Life [years]',
-    'Design Factor',
-    'Prowrap CF Cloth Width [mm]',
-    'Wall Loss [%]',
-    'Required Structural Thickness [mm]',
-    'Installed Plies',
-    'Total Repair Length [mm]',
-    'Cloth Band Count',
-    'Procurement Axial Length [mm]',
-    'Fabric Area [m2]',
-    'Epoxy Mass [kg]',
+EXPECTED_STRUCTURAL_OUTPUTS = (
+    52.7806925498426,
+    2.0,
+    3,
+    588.933816016055,
+    300.0,
+)
+EXPECTED_PROCUREMENT = (
+    (0, 3, 900.0, 3.878107635297385, 4.6537291623568615),
+    (2, 0, 1000.0, 4.30900848366376, 5.170810180396512),
+    (1, 1, 800.0, 3.447206786931009, 4.136648144317211),
+    (1, 1, 800.0, 3.447206786931009, 4.136648144317211),
 )
 
 
@@ -61,23 +47,11 @@ def _formula_cells(workbook):
 
 
 def _main_result_signature(workbook):
-    """Return every emitted main engineering output for all six repair rows."""
     worksheet = workbook['Batch Input & Results']
     columns = _columns(INPUT_HEADERS + OUTPUT_HEADERS)
     return tuple(
         tuple(worksheet.cell(row, columns[heading]).value for heading in OUTPUT_HEADERS)
         for row in range(2, 8)
-    )
-
-
-def _detail_result_signature(workbook):
-    """Return linked-detail ownership and complete calculated trace cells."""
-    worksheet = workbook['Individual Defects']
-    columns = _columns(DETAIL_INPUT_HEADERS + DETAIL_OUTPUT_HEADERS)
-    headings = DETAIL_INPUT_HEADERS + DETAIL_OUTPUT_HEADERS
-    return tuple(
-        tuple(worksheet.cell(row, columns[heading]).value for heading in headings)
-        for row in range(2, 5)
     )
 
 
@@ -90,218 +64,296 @@ def _warning_signature(workbook):
     )
 
 
-def _summary_identity_signature(workbook):
+def _summary_signature(workbook):
     worksheet = workbook['Summary']
-    return tuple(worksheet[address].value for address in ('B3', 'B4', 'B5', 'B24', 'B25'))
+    return tuple(
+        worksheet[address].value
+        for address in (
+            'B3', 'B4', 'B5', 'B10', 'B13', 'B14',
+            'B15', 'B16', 'B17', 'B24', 'B25',
+        )
+    )
 
 
-def test_release_documentation_uses_current_template_and_emitted_provenance():
-    """Release instructions must not direct users to stale output identity."""
+def test_release_documentation_is_current_v13_only_and_names_isolated_deployment():
+    """Catch release guidance that points operators to v1.2 or an existing app."""
     root = Path(__file__).resolve().parents[1]
-    readme = (root / 'README.md').read_text()
-    engine_source = (root / 'ENGINE_SOURCE.md').read_text()
+    readme = (root / 'README.md').read_text(encoding='utf-8')
+    deployment = (root / 'DEPLOYMENT.md').read_text(encoding='utf-8')
 
-    assert readme.startswith('# PROWRAP CalcBatch v1.2\n')
-    assert 'PROWRAP_CalcBatch_v1.2_Template.xlsx' in readme
-    assert 'The separate **Warnings** worksheet consolidates every permanent warning code' in readme
-    assert 'The app validation preview reports row-level status and correction messages' in readme
-    assert 'in the `Compliance Warnings` column' not in readme
-    assert 'Processed workbooks record the short released revision `746f3b3`.' not in engine_source
-    assert 'processor revision update is deferred' not in engine_source
-    assert '`91b68d6`' in engine_source
+    assert readme.startswith('# PROWRAP CalcBatch v1.3\n')
+    assert 'PROWRAP_CalcBatch_v1.3_Template.xlsx' in readme
+    assert 'PROWRAP_CalcBatch_v1.2_Template.xlsx' not in readme
+    assert '21 controlled inputs and 10 controlled outputs' in readme
+    assert '300-only, 500-only, mixed, and reversed mixed' in readme
+    assert 'Batch release version is `1.3.0`' in readme
+    assert '`da83373d648694f50b8a974ff6071a73ceec2089`' in readme
+
+    assert deployment.startswith(
+        '# Deploy CalcBatch v1.3 as a new isolated public application\n'
+    )
+    assert '`Prowrap110/Iso24817CalcBatch-v1.3`' in deployment
+    assert '`release/v1.3.0`' in deployment
+    assert '`app.py`' in deployment
+    assert '`iso24817calcbatch-prowrapv13`' in deployment
+    assert '`https://iso24817calcbatch-prowrapv13.streamlit.app`' in deployment
+    assert 'Do not deploy now' in deployment
+    assert 'Do not select, reboot, reconfigure, or deploy over' in deployment
 
 
-def test_linked_corrosion_release_acceptance_workbook(tmp_path):
-    """Exercise all v1.2 modes through the production template and processor."""
+def test_mixed_width_v13_release_acceptance_workbook(tmp_path):
+    """Exercise all six frozen v1.3 scenarios through production paths."""
     from scripts.create_acceptance_workbook import create_acceptance_workbook
 
-    source_path = tmp_path / 'acceptance-input.xlsx'
+    source_path = tmp_path / 'PROWRAP_CalcBatch_v1.3_Acceptance_Input.xlsx'
     create_acceptance_workbook(source_path)
     input_book = load_workbook(source_path, data_only=False)
     main_input = input_book['Batch Input & Results']
-    detail_input = input_book['Individual Defects']
     main_columns = _columns(INPUT_HEADERS + OUTPUT_HEADERS)
-    detail_columns = _columns(DETAIL_INPUT_HEADERS + DETAIL_OUTPUT_HEADERS)
 
     assert input_book.sheetnames == EXPECTED_SHEETS
-    assert input_book.properties.title == 'PROWRAP CalcBatch v1.2'
-    assert input_book['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.2'
+    assert input_book.properties.title == 'PROWRAP CalcBatch v1.3'
+    assert input_book['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.3'
     assert input_book['Instructions']['A1'].value == (
-        'PROWRAP CalcBatch v1.2 — Instructions'
+        'PROWRAP CalcBatch v1.3 — Instructions'
     )
-    assert [input_book['Batch Information'].cell(row, 2).value for row in (3, 4, 5)] == [
-        'Acceptance Customer', 'Acceptance Location', 'ACCEPT-001',
-    ]
-    expected_rows = (
-        ('Actual defect length', None, 'Corrosion', 'External'),
-        ('Independent defects', None, 'Corrosion', 'External'),
-        ('Enter manually', 'R-001', 'Corrosion', 'External'),
-        ('Enter manually', 'R-BAD', 'Corrosion', 'External'),
-        (None, None, 'Dent no-crack', 'External'),
-        (None, None, 'Dent w/crack', 'External'),
-    )
+    assert input_book['Instructions']['A11'].alignment.wrap_text is True
+    assert input_book['Instructions'].row_dimensions[11].height >= 64
+    assert len(INPUT_HEADERS) == 21
+    assert len(OUTPUT_HEADERS) == 10
+    assert tuple(cell.value for cell in main_input[1]) == INPUT_HEADERS + OUTPUT_HEADERS
+    assert [
+        input_book['Batch Information'].cell(row, 2).value for row in (3, 4, 5)
+    ] == ['Acceptance Customer', 'Acceptance Location', 'ACCEPT-V13-001']
     assert [
         tuple(main_input.cell(row, main_columns[header]).value for header in (
-            'Defect Length Basis', 'Repair Group ID', 'Mechanism', 'Defect Location',
-        )) for row in range(2, 8)
-    ] == list(expected_rows)
-    for row in range(2, 5):
-        assert [main_input.cell(row, main_columns[header]).value for header in (
-            'Pipe OD [mm]', 'Nominal Wall [mm]', 'Design Pressure [bar]',
-            'Defect Length [mm]', 'Prowrap CF Cloth Width [mm]',
-        )] == [1016.0, 12.0, 104.9, 1000.0, 500.0]
-    assert main_input.cell(4, main_columns['Remaining Wall [mm]']).value is None
-    assert [main_input.cell(5, main_columns[header]).value for header in (
-        'Pipe OD [mm]', 'Nominal Wall [mm]', 'Design Pressure [bar]',
-        'Defect Length [mm]', 'Defect Length Basis', 'Repair Group ID',
-        'Remaining Wall [mm]', 'Prowrap CF Cloth Width [mm]',
-    )] == [1016.0, 12.0, 104.9, 1000.0, 'Enter manually', 'R-BAD', None, 500.0]
-    assert [
-        tuple(detail_input.cell(row, detail_columns[header]).value for header in DETAIL_INPUT_HEADERS)
-        for row in range(2, 5)
+            'Prowrap CF Cloth Width 1 [mm]',
+            'Prowrap CF Cloth Width 2 [mm]',
+        ))
+        for row in range(2, 8)
     ] == [
-        ('R-001', 'D-01', 10.0, 9.652, 'Yes'),
-        ('R-001', 'D-02', 35.0, 10.0, 'Yes'),
-        ('R-BAD', 'D-BAD', 10.0, 9.652, 'No'),
+        (300, 300), (500, 500), (300, 500),
+        (500, 300), (300, 500), (300, 500),
     ]
+    assert [
+        main_input.cell(row, main_columns['Defect Length [mm]']).value
+        for row in range(2, 8)
+    ] == [300] * 6
+    assert main_input.cell(6, main_columns['Pipe OD [mm]']).value is None
+    assert main_input.cell(7, main_columns['Mechanism']).value == 'Leak'
+    assert main_input.cell(7, main_columns['Design Pressure [bar]']).value == 150
+    assert _formula_cells(input_book) == []
 
-    processed = process_workbook(source_path.read_bytes(), processed_at=FIXED_TIME)
+    assert (
+        main_input.tables['BatchRows'].ref,
+        main_input.tables['BatchRows'].autoFilter.ref,
+    ) == ('A1:AE151', 'A1:AE151')
+    detail_input = input_book['Individual Defects']
+    assert (
+        detail_input.tables['IndividualDefects'].ref,
+        detail_input.tables['IndividualDefects'].autoFilter.ref,
+    ) == ('A1:X151', 'A1:X151')
+    assert tuple(
+        cell.value for cell in detail_input[1][:len(DETAIL_INPUT_HEADERS)]
+    ) == DETAIL_INPUT_HEADERS
+    validations = {
+        item.formula1: str(item.sqref)
+        for item in main_input.data_validations.dataValidation
+    }
+    assert validations['=ClothWidth1Choices'].endswith('151')
+    assert validations['=ClothWidth2Choices'].endswith('151')
+
+    processed = process_workbook(
+        source_path.read_bytes(),
+        processed_at=FIXED_TIME,
+        source_name=source_path.name,
+    )
     result_book = load_workbook(BytesIO(processed.workbook_bytes), data_only=False)
     main = result_book['Batch Input & Results']
     detail = result_book['Individual Defects']
-
-    assert result_book.sheetnames == EXPECTED_SHEETS
-    assert result_book['Lists'].sheet_state == 'hidden'
-    assert main.protection.sheet is True
-    assert detail.protection.sheet is True
-    assert result_book['Summary'].protection.sheet is True
-    assert all(result_book['Summary'][address].protection.locked for address in (
-        'B3', 'B7', 'B24', 'B25',
-    ))
-    assert (main.tables['BatchRows'].ref, main.tables['BatchRows'].autoFilter.ref) == (
-        'A1:AC151', 'A1:AC151',
-    )
-    assert (
-        detail.tables['IndividualDefects'].ref,
-        detail.tables['IndividualDefects'].autoFilter.ref,
-    ) == ('A1:X151', 'A1:X151')
-    assert (main.protection.autoFilter, main.protection.selectLockedCells,
-            main.protection.selectUnlockedCells) == (False, False, False)
-    assert (detail.protection.autoFilter, detail.protection.selectLockedCells,
-            detail.protection.selectUnlockedCells) == (False, False, False)
-    assert (main['A2'].protection.locked, main['T2'].protection.locked,
-            main['U2'].protection.locked, main['AC2'].protection.locked) == (
-        False, False, True, True,
-    )
-    assert (detail['A2'].protection.locked, detail['E2'].protection.locked,
-            detail['F2'].protection.locked, detail['X2'].protection.locked) == (
-        False, False, True, True,
-    )
-    assert _summary_identity_signature(result_book) == (
-        'Acceptance Customer', 'Acceptance Location', 'ACCEPT-001', '1.2.0', '91b68d6',
-    )
-    assert processed.status_counts == {
-        'REVIEW REQUIRED': 3, 'INPUT ERROR': 1, 'OK': 2,
-    }
-    assert [main.cell(row, main_columns['Installed Plies']).value for row in (2, 3, 4)] == [12, 7, 7]
-    assert [main.cell(row, main_columns['Repair Zone Length [mm]']).value for row in (2, 3, 4)] == [1000.0, 1000.0, 1000.0]
-    detail_signature = _detail_result_signature(result_book)
-    assert detail_signature[0] == (
-        'R-001', 'D-01', 10.0, 9.652, 'Yes', 2, 'OK', None, None,
-        'modified', pytest.approx(0.19566666666666674),
-        pytest.approx(0.008202099737532808), pytest.approx(1.0025699928354461),
-        pytest.approx(519.0), pytest.approx(518.7347244738818),
-        pytest.approx(122.53576168674373), pytest.approx(88.2257484144555),
-        pytest.approx(1.3888888888888888), pytest.approx(444.07666666666677),
-        True, False, pytest.approx(88.2257484144555), None, 'W013',
-    )
-    assert detail_signature[1] == (
-        'R-001', 'D-02', 35.0, 10.0, 'Yes', 3, 'OK', None, None,
-        'modified', pytest.approx(0.16666666666666666),
-        pytest.approx(0.1004757217847769), pytest.approx(1.0310259179787589),
-        pytest.approx(519.0), pytest.approx(516.4350290773692),
-        pytest.approx(121.99252655370927), pytest.approx(87.83461911867067),
-        pytest.approx(1.3888888888888888), pytest.approx(444.07666666666677),
-        True, False, pytest.approx(87.83461911867067), 'Yes', 'W013',
-    )
-    assert detail_signature[2][:9] == (
-        'R-BAD', 'D-BAD', 10.0, 9.652, 'No', 4, 'INPUT ERROR',
-        'INVALID_SELECTION', 'Separation exceeds 3t: must be exactly Yes.',
-    )
-    assert detail_signature[2][9:] == (None,) * 15
-
-    warning_rows = {
-        result_book['Warnings'].cell(row, 1).value: result_book['Warnings'].cell(row, 3).value
-        for row in range(4, result_book['Warnings'].max_row + 1)
-        if result_book['Warnings'].cell(row, 1).value
-    }
-    assert warning_rows['W013'] == 'Main 2, 3, 4; Individual Defects 2, 3'
-
     cost = result_book['Cost Calculation']
-    assert tuple(cost.cell(5, column).value for column in range(1, 21)) == (
-        EXPECTED_COST_SOURCE_HEADERS
+
+    assert processed.status_counts == {
+        'OK': 4, 'INPUT ERROR': 1, 'NOT REPAIRABLE': 1,
+    }
+    assert _summary_signature(result_book) == (
+        'Acceptance Customer', 'Acceptance Location', 'ACCEPT-V13-001',
+        6, 4, 0, 1, 1, 0, '1.3.0', 'da83373',
     )
-    assert tuple(cost.cell(5, column).value for column in range(21, 25)) == (
-        'Cost', 'Price', 'Quantity', 'Total Amount',
+    assert result_book['Lists'].sheet_state == 'hidden'
+    assert all(result_book[name].protection.sheet for name in (
+        'Batch Input & Results', 'Individual Defects', 'Cost Calculation',
+        'Warnings', 'Summary',
+    ))
+    assert (
+        main.protection.autoFilter,
+        main.protection.selectLockedCells,
+        main.protection.selectUnlockedCells,
+    ) == (False, False, False)
+    assert (
+        detail.protection.autoFilter,
+        detail.protection.selectLockedCells,
+        detail.protection.selectUnlockedCells,
+    ) == (False, False, False)
+    assert all(
+        not main.cell(2, column).protection.locked
+        for column in range(1, len(INPUT_HEADERS) + 1)
     )
-    assert (cost.tables['CostRows'].ref, cost.tables['CostRows'].autoFilter.ref) == ('A5:X11', 'A5:X11')
-    assert cost.protection.sheet is True
-    assert all(not cost[address].protection.locked for address in ('B3', 'E3', 'H3'))
-    assert all(cost[address].protection.locked for address in ('A3', 'D3', 'G3'))
+    assert all(
+        main.cell(2, column).protection.locked
+        for column in range(
+            len(INPUT_HEADERS) + 1,
+            len(INPUT_HEADERS + OUTPUT_HEADERS) + 1,
+        )
+    )
+    assert all(
+        not detail.cell(2, column).protection.locked
+        for column in range(1, len(DETAIL_INPUT_HEADERS) + 1)
+    )
+    assert detail.cell(2, len(DETAIL_INPUT_HEADERS) + 1).protection.locked
+
+    structural_headers = (
+        'Wall Loss [%]', 'Required Structural Thickness [mm]',
+        'Installed Plies', 'Total Repair Length [mm]',
+        'Repair Zone Length [mm]',
+    )
+    for row in range(2, 6):
+        assert tuple(
+            main.cell(row, main_columns[header]).value
+            for header in structural_headers
+        ) == pytest.approx(EXPECTED_STRUCTURAL_OUTPUTS)
+
+    for row, expected in zip(range(2, 6), EXPECTED_PROCUREMENT, strict=True):
+        actual = tuple(
+            main.cell(row, main_columns[header]).value
+            for header in (
+                '500 mm Cloth Band Count', '300 mm Cloth Band Count',
+                'Procurement Axial Length [mm]', 'Fabric Area [m2]',
+                'Epoxy Mass [kg]',
+            )
+        )
+        assert actual == pytest.approx(expected)
+        count_500, count_300, procurement, area, epoxy = actual
+        assert procurement == 500 * count_500 + 300 * count_300
+        coverage = procurement - 50 * (count_500 + count_300 - 1)
+        assert coverage >= main.cell(
+            row, main_columns['Total Repair Length [mm]'],
+        ).value
+        assert area == pytest.approx(
+            3 * 3.141592653589793 * 457.2 * procurement / 1_000_000
+        )
+        assert epoxy == pytest.approx(area * 1.2)
+
+    assert all(
+        main.cell(6, main_columns[header]).value is None
+        for header in OUTPUT_HEADERS
+    )
+    assert main.cell(
+        7, main_columns['Wall Loss [%]'],
+    ).value == pytest.approx(52.7806925498426)
+    assert main.cell(7, main_columns['Repair Zone Length [mm]']).value == 300
+    assert all(
+        main.cell(7, main_columns[header]).value is None
+        for header in (
+            'Required Structural Thickness [mm]', 'Installed Plies',
+            'Total Repair Length [mm]', '500 mm Cloth Band Count',
+            '300 mm Cloth Band Count', 'Procurement Axial Length [mm]',
+            'Fabric Area [m2]', 'Epoxy Mass [kg]',
+        )
+    )
+
+    assert _warning_signature(result_book) == (
+        (
+            'W002',
+            'No Type B Formula 12 repair solution exists for the requested '
+            'case; do not install without changing the design basis or repair method.',
+            '7',
+        ),
+        (
+            'W003',
+            'Requested Type B life exceeds the qualified PRW110 life; inspect, '
+            'revalidate, or replace at the qualified limit.',
+            '7',
+        ),
+        (
+            'W006',
+            'Type B design uses the defined through-wall defect basis and Annex F '
+            'impact-qualified minimum; assessor confirmation is required.',
+            '7',
+        ),
+    )
+
+    assert tuple(
+        cost.cell(5, column).value for column in range(1, 23)
+    ) == COST_SOURCE_HEADERS
+    assert tuple(
+        cost.cell(5, column).value for column in range(23, 27)
+    ) == ('Cost', 'Price', 'Quantity', 'Total Amount')
+    assert (
+        cost.tables['CostRows'].ref,
+        cost.tables['CostRows'].autoFilter.ref,
+    ) == ('A5:Z11', 'A5:Z11')
+    assert all(
+        not cost[address].protection.locked
+        for address in ('B3', 'E3', 'H3', 'Y6', 'Y155')
+    )
+    assert all(
+        cost[address].protection.locked
+        for address in ('W6', 'X6', 'Z6', 'W155', 'X155', 'Z155')
+    )
+    assert any(
+        str(item.sqref) == 'Y6:Y155'
+        for item in cost.data_validations.dataValidation
+    )
     expected_formulas = [
         (f'Cost Calculation!{column}{row}', formula)
         for row in range(6, 12)
         for column, formula in (
-            ('U', f'=IF(OR($B$3="",$E$3="",S{row}="",T{row}=""),"",S{row}*$B$3+T{row}*$E$3)'),
-            ('V', f'=IF(OR(U{row}="",$H$3=""),"",U{row}*$H$3)'),
-            ('X', f'=IF(OR(V{row}="",W{row}=""),"",V{row}*W{row})'),
+            ('W', cost_formula(row)),
+            ('X', price_formula(row)),
+            ('Z', total_amount_formula(row)),
         )
     ]
     assert _formula_cells(result_book) == expected_formulas
-    source_columns = _columns(INPUT_HEADERS + OUTPUT_HEADERS)
     for cost_row, main_row in zip(range(6, 12), range(2, 8), strict=True):
-        assert [cost.cell(cost_row, column).value for column in range(1, 21)] == [
-            main.cell(main_row, source_columns[header]).value
-            for header in EXPECTED_COST_SOURCE_HEADERS
+        assert [
+            cost.cell(cost_row, column).value for column in range(1, 23)
+        ] == [
+            main.cell(main_row, main_columns[header]).value
+            for header in COST_SOURCE_HEADERS
         ]
 
     main_signature = _main_result_signature(result_book)
     warning_signature = _warning_signature(result_book)
-    summary_identity = _summary_identity_signature(result_book)
-
+    summary_signature = _summary_signature(result_book)
     cost['B3'], cost['E3'], cost['H3'] = 25.0, 8.0, 1.4
+    for row, quantity in zip(
+        range(6, 12), (1, 2, 0, 3, 1.5, 4), strict=True,
+    ):
+        cost.cell(row, 25).value = quantity
     reupload = BytesIO()
     result_book.save(reupload)
-    rebuilt = process_workbook(reupload.getvalue(), processed_at=FIXED_TIME)
-    rebuilt_book = load_workbook(
-        BytesIO(rebuilt.workbook_bytes),
-        data_only=False,
+    rebuilt = process_workbook(
+        reupload.getvalue(),
+        processed_at=FIXED_TIME,
+        source_name='reuploaded-v13.xlsx',
     )
-    assert rebuilt_book.sheetnames == EXPECTED_SHEETS
-    assert [rebuilt_book['Cost Calculation'][address].value for address in ('B3', 'E3', 'H3')] == [25.0, 8.0, 1.4]
-    assert _formula_cells(rebuilt_book) == expected_formulas
-    rebuilt_main = rebuilt_book['Batch Input & Results']
-    assert rebuilt.status_counts == {
-        'REVIEW REQUIRED': 3, 'INPUT ERROR': 1, 'OK': 2,
-    }
+    rebuilt_book = load_workbook(BytesIO(rebuilt.workbook_bytes), data_only=False)
+
+    assert rebuilt.status_counts == processed.status_counts
     assert _main_result_signature(rebuilt_book) == main_signature
-    assert _detail_result_signature(rebuilt_book) == detail_signature
     assert _warning_signature(rebuilt_book) == warning_signature
-    assert _summary_identity_signature(rebuilt_book) == summary_identity
-    assert rebuilt_book['Summary'].protection.sheet is True
-    assert all(rebuilt_book['Summary'][address].protection.locked for address in (
-        'B3', 'B7', 'B24', 'B25',
-    ))
-
-
-@pytest.mark.parametrize('sheet_count', (5, 6, 7))
-def test_legacy_controlled_layouts_upgrade_to_the_v12_eight_sheet_contract(sheet_count):
-    """Old controlled five/six/seven-sheet downloads remain safe input files."""
-    legacy = legacy_workbook_bytes_with_rows([valid_row_values()], sheet_count=sheet_count)
-    upgraded = process_workbook(legacy, processed_at=FIXED_TIME)
-    workbook = load_workbook(BytesIO(upgraded.workbook_bytes), data_only=False)
-    main_columns = _columns(INPUT_HEADERS + OUTPUT_HEADERS)
-
-    assert workbook.sheetnames == EXPECTED_SHEETS
-    assert workbook['Batch Input & Results'].cell(2, main_columns['Defect Length Basis']).value == 'Actual defect length'
-    assert upgraded.status_counts == {'OK': 1}
+    assert _summary_signature(rebuilt_book) == summary_signature
+    assert _formula_cells(rebuilt_book) == expected_formulas
+    rebuilt_cost = rebuilt_book['Cost Calculation']
+    assert [
+        rebuilt_cost[address].value for address in ('B3', 'E3', 'H3')
+    ] == [25.0, 8.0, 1.4]
+    assert [
+        rebuilt_cost.cell(row, 25).value for row in range(6, 12)
+    ] == [1, 2, 0, 3, 1.5, 4]
+    assert all(
+        rebuilt_cost[address].protection.locked
+        for address in ('W6', 'X6', 'Z6')
+    )
+    assert rebuilt_cost['Y6'].protection.locked is False

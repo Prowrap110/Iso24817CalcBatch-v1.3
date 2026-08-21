@@ -12,21 +12,39 @@ class ClothWidthTest(unittest.TestCase):
         self.assertEqual(result["proc_length"], 600.0)
         self.assertAlmostEqual(result["optimized_sqm"], 2.585405090198256)
 
-    def test_width_changes_procurement_without_changing_structural_plies(self):
-        at_300 = calculate_repair(**default_inputs(), cloth_width_mm=300.0)
-        at_250 = calculate_repair(**default_inputs(), cloth_width_mm=250.0)
+    def test_approved_width_pairs_change_only_procurement_outputs(self):
+        results = tuple(
+            calculate_repair(**default_inputs(), cloth_widths_mm=widths)
+            for widths in (
+                (300.0, 300.0),
+                (500.0, 500.0),
+                (300.0, 500.0),
+                (500.0, 300.0),
+            )
+        )
+        structural_keys = (
+            "t_required", "num_plies", "final_thickness", "overlap_length",
+            "taper_length", "iso_length", "p_steel_capacity",
+            "p_composite_design", "b31g_details", "b31g_assessments",
+            "type_b_details", "thickness_check_ok", "compliance_warnings",
+        )
+        baseline = {key: results[0][key] for key in structural_keys}
 
-        self.assertEqual(at_250["num_plies"], at_300["num_plies"])
-        self.assertEqual(at_250["final_thickness"], at_300["final_thickness"])
-        self.assertEqual(at_250["num_bands"], 2)
-        self.assertEqual(at_250["proc_length"], 500.0)
-        self.assertNotEqual(at_250["optimized_sqm"], at_300["optimized_sqm"])
+        self.assertEqual(
+            tuple((item["num_bands_500"], item["num_bands_300"], item["proc_length"])
+                  for item in results),
+            ((0, 2, 600.0), (1, 0, 500.0), (1, 0, 500.0), (1, 0, 500.0)),
+        )
+        for result in results[1:]:
+            self.assertEqual(
+                {key: result[key] for key in structural_keys}, baseline,
+            )
 
-    def test_width_must_exceed_qualified_stitch_overlap(self):
-        for width in (0.0, 49.0, 50.0):
-            with self.subTest(width=width):
-                with self.assertRaisesRegex(ValueError, "cloth width"):
-                    calculate_repair(**default_inputs(), cloth_width_mm=width)
+    def test_unapproved_widths_are_rejected_by_the_pinned_optimizer(self):
+        for widths in ((250.0, 300.0), (0.0, 300.0), (50.0, 50.0)):
+            with self.subTest(widths=widths):
+                with self.assertRaisesRegex(ValueError, "Cloth widths"):
+                    calculate_repair(**default_inputs(), cloth_widths_mm=widths)
 
 
 if __name__ == "__main__":

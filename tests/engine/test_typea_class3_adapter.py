@@ -131,6 +131,115 @@ class TypeAClass3AdapterTest(unittest.TestCase):
         self.assertEqual(updated["num_bands"], 2)
         self.assertEqual(updated["proc_length"], 600)
 
+    def test_controlling_result_uses_requested_dual_widths_without_structural_drift(self):
+        structural_keys = (
+            "t_required",
+            "num_plies",
+            "final_thickness",
+            "overlap_length",
+            "taper_length",
+            "iso_length",
+            "p_steel_capacity",
+            "p_composite_design",
+            "b31g_details",
+            "b31g_assessments",
+            "type_b_details",
+            "thickness_check_ok",
+            "compliance_warnings",
+            "iso_typea_class3_controls",
+            "iso_typea_class3_noncontrolling_reason",
+        )
+        repair = calculate_repair(
+            customer="PROTAP",
+            location="Turkey",
+            report_no="24-152",
+            od=457.2,
+            wall=9.53,
+            pressure=110.0,
+            temp=40.0,
+            defect_type="Corrosion",
+            defect_loc="External",
+            length=100.0,
+            rem_wall=4.5,
+            yield_strength=359.0,
+            design_factor=0.72,
+            design_life=20,
+            cloth_widths_mm=(300.0, 300.0),
+        )
+        iso_result = calculate_type_a_class3_prowrap_check(
+            od=457.2,
+            pressure_bar=110.0,
+            temp=40.0,
+            rem_wall=4.5,
+            design_life=20,
+            substrate_allowable_pressure_bar=substrate_credit_bar_for_iso_check(repair),
+            nominal_wall_mm=9.53,
+        )
+        cases = (
+            (
+                (300.0, 300.0),
+                (
+                    0, 2, 2, 600.0, 550.0, 161.066183983945,
+                    2.585405090198256, 3.1024861082379074,
+                ),
+            ),
+            (
+                (500.0, 500.0),
+                (
+                    1, 0, 1, 500.0, 500.0, 111.066183983945,
+                    2.15450424183188, 2.585405090198256,
+                ),
+            ),
+            (
+                (300.0, 500.0),
+                (
+                    1, 0, 1, 500.0, 500.0, 111.066183983945,
+                    2.15450424183188, 2.585405090198256,
+                ),
+            ),
+            (
+                (500.0, 300.0),
+                (
+                    1, 0, 1, 500.0, 500.0, 111.066183983945,
+                    2.15450424183188, 2.585405090198256,
+                ),
+            ),
+        )
+        updated_results = []
+        for widths, expected_procurement in cases:
+            with self.subTest(widths=widths):
+                updated = apply_type_a_class3_result_to_repair(
+                    repair, iso_result, cloth_widths_mm=widths,
+                )
+                self.assertTrue(updated["iso_typea_class3_controls"])
+                self.assertEqual(
+                    (
+                        updated["num_bands_500"],
+                        updated["num_bands_300"],
+                        updated["num_bands"],
+                        updated["proc_length"],
+                        updated["covered_length_mm"],
+                        updated["excess_coverage_mm"],
+                        updated["optimized_sqm"],
+                        updated["epoxy_kg"],
+                    ),
+                    expected_procurement,
+                )
+                self.assertEqual(
+                    updated["cloth_widths_mm"], tuple(sorted(widths)),
+                )
+                updated_results.append(updated)
+
+        baseline = {
+            key: updated_results[0][key]
+            for key in structural_keys
+        }
+        for updated in updated_results[1:]:
+            self.assertEqual(
+                {key: updated[key] for key in structural_keys},
+                baseline,
+            )
+
     def test_external_non_leak_crack_uses_effective_pipe_capacity_as_substrate_credit(self):
         repair = calculate_repair(
             customer="PROTAP",

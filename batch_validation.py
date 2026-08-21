@@ -5,9 +5,9 @@ from collections.abc import Mapping
 from typing import Any
 
 from batch_schema import (
+    APPROVED_CLOTH_WIDTHS_MM,
     DETAIL_INPUT_HEADERS,
     INPUT_HEADERS,
-    STITCH_OVERLAP_MM,
     BatchInfo,
     ValidatedIndividualDefectRow,
     ValidatedRow,
@@ -51,7 +51,10 @@ _REQUIRED_NUMERIC_HEADERS = {
     'Design Factor',
     'Installation Temperature [degC]',
     'Cyclic Derating Factor',
-    'Prowrap CF Cloth Width [mm]',
+}
+_CLOTH_WIDTH_HEADERS = {
+    'Prowrap CF Cloth Width 1 [mm]',
+    'Prowrap CF Cloth Width 2 [mm]',
 }
 
 
@@ -128,6 +131,10 @@ def validate_row(
 
         if header == 'Axial Load Case':
             _validate_axial_load_case(raw_value, header, normalized, issues)
+            continue
+
+        if header in _CLOTH_WIDTH_HEADERS:
+            _validate_cloth_width(raw_value, header, normalized, issues)
             continue
 
         if header == 'Internal Corrosion Rate [mm/year]':
@@ -316,18 +323,34 @@ def _validate_numeric_header(
     if header == 'Cyclic Derating Factor' and not 0 < number <= 1:
         issues.append(_issue('OUT_OF_RANGE', header, 'must be greater than zero and no more than one'))
         return
-    if header == 'Prowrap CF Cloth Width [mm]' and number <= STITCH_OVERLAP_MM:
-        issues.append(_issue(
-            'OUT_OF_RANGE', header,
-            f'must be greater than the {STITCH_OVERLAP_MM:g} mm stitch overlap',
-        ))
-        return
     if header == 'Remaining Wall [mm]':
         nominal_wall = normalized.get('Nominal Wall [mm]')
         if nominal_wall is not None and number > nominal_wall:
             issues.append(_issue('OUT_OF_RANGE', header, 'cannot exceed nominal wall'))
             return
 
+    normalized[header] = number
+
+
+def _validate_cloth_width(
+    raw_value: Any,
+    header: str,
+    normalized: dict[str, Any],
+    issues: list[ValidationIssue],
+) -> None:
+    if _is_blank(raw_value):
+        issues.append(_issue('REQUIRED_VALUE', header, 'a value is required'))
+        return
+    number = _finite_number(raw_value)
+    if number is None:
+        issues.append(_issue('INVALID_NUMBER', header, 'must be a finite number'))
+        return
+    if number not in APPROVED_CLOTH_WIDTHS_MM:
+        issues.append(_issue(
+            'INVALID_SELECTION', header,
+            'must be an approved 300 mm or 500 mm PROWRAP width',
+        ))
+        return
     normalized[header] = number
 
 

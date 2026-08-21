@@ -2,6 +2,7 @@
 
 import math
 
+from .band_procurement import optimize_band_procurement
 from .b31g import assess_b31g
 from .corrosion_defects import (
     ACTUAL_DEFECT_LENGTH,
@@ -222,18 +223,15 @@ def _validate_inputs(
         raise ValueError("\n".join(errors))
 
 
-def calculate_band_procurement(repair_length_mm, cloth_width_mm, overlap_mm):
-    """Return axial band count and untrimmed cloth length for a repair."""
-    if cloth_width_mm <= overlap_mm:
-        raise ValueError(
-            "Prowrap CF cloth width must exceed the 50 mm stitch overlap."
-        )
-    if repair_length_mm <= cloth_width_mm:
-        return 1, cloth_width_mm
-    num_bands = math.ceil(
-        (repair_length_mm - cloth_width_mm) / (cloth_width_mm - overlap_mm)
-    ) + 1
-    return num_bands, num_bands * cloth_width_mm
+def _selected_cloth_widths(cloth_widths_mm, cloth_width_mm):
+    """Return the two selected widths, preserving the engine's single-width API."""
+    if cloth_widths_mm is not None:
+        if cloth_width_mm is not None:
+            raise ValueError("Supply either cloth_widths_mm or cloth_width_mm, not both.")
+        return cloth_widths_mm
+    if cloth_width_mm is None:
+        cloth_width_mm = PROWRAP["cloth_width_mm"]
+    return (cloth_width_mm, cloth_width_mm)
 
 
 def iso_type_b_min_thickness(
@@ -341,7 +339,8 @@ def calculate_repair(
     component_type="Straight",
     cyclic_derating_factor=1.0,
     axial_load_case=0,
-    cloth_width_mm=PROWRAP["cloth_width_mm"],
+    cloth_widths_mm=None,
+    cloth_width_mm=None,
     allow_unqualified_temperature=False,
     defect_length_basis=ACTUAL_DEFECT_LENGTH,
     individual_defects=(),
@@ -395,12 +394,8 @@ def calculate_repair(
             "or equal to 1."
         )
     baseline_component_factor(component_type)  # validates component type
-    cloth_width_mm = float(cloth_width_mm)
     stitching_overlap_mm = PROWRAP["stitching_overlap_mm"]
-    if cloth_width_mm <= stitching_overlap_mm:
-        raise ValueError(
-            "Prowrap CF cloth width must exceed the 50 mm stitch overlap."
-        )
+    cloth_widths_mm = _selected_cloth_widths(cloth_widths_mm, cloth_width_mm)
 
     applied_basis = ACTUAL_DEFECT_LENGTH
     repair_zone_length_mm = length
@@ -659,9 +654,11 @@ def calculate_repair(
     taper_length = 5.0 * final_thickness
     total_repair_length_calc = length + (2 * overlap_length) + (2 * taper_length)
 
-    num_bands, procurement_axial_length = calculate_band_procurement(
-        total_repair_length_calc, cloth_width_mm, stitching_overlap_mm
+    band_procurement = optimize_band_procurement(
+        total_repair_length_calc, cloth_widths_mm, stitching_overlap_mm
     )
+    normalized_cloth_widths_mm = tuple(sorted(float(width) for width in cloth_widths_mm))
+    procurement_axial_length = band_procurement.procurement_axial_length_mm
 
     circumference_m = (math.pi * od) / 1000
     axial_procurement_m = procurement_axial_length / 1000
@@ -855,12 +852,21 @@ def calculate_repair(
         "governing_b31g_remaining_wall_mm": governing_wall,
         "thickness_check_ok": thickness_check_ok,
         "compliance_warnings": compliance_warnings,
-        "num_bands": num_bands,
+        "num_bands_500": band_procurement.count_500,
+        "num_bands_300": band_procurement.count_300,
+        "num_bands": band_procurement.total_band_count,
         "proc_length": procurement_axial_length,
+        "covered_length_mm": band_procurement.covered_length_mm,
+        "excess_coverage_mm": band_procurement.excess_coverage_mm,
         "sf": safety_factor,
         "design_factor": design_factor,
         "design_life": design_life,
-        "cloth_width_mm": cloth_width_mm,
+        "cloth_widths_mm": normalized_cloth_widths_mm,
+        "cloth_width_mm": (
+            normalized_cloth_widths_mm[0]
+            if normalized_cloth_widths_mm[0] == normalized_cloth_widths_mm[1]
+            else None
+        ),
         "optimized_sqm": optimized_sqm,
         "epoxy_kg": epoxy_kg,
         "is_upgraded": is_upgraded,
@@ -924,6 +930,7 @@ def calculate_type_a_class3_prowrap_check(
     result = calculate_type_a_class3(inputs)
     result["input_summary"] = {
         "pressure_bar": pressure_bar,
+        "remaining_wall_mm": rem_wall,
         "substrate_allowable_pressure_bar": substrate_allowable_pressure_bar,
         "hoop_modulus_mpa": PROWRAP["modulus_circ"],
         "axial_modulus_mpa": PROWRAP["modulus_axial"],
@@ -958,6 +965,7 @@ def apply_type_a_class3_result_to_repair(
     repair_data,
     typea_class3_result,
     cloth_width_mm=None,
+    cloth_widths_mm=None,
 ):
     """Use the ISO Type A/Class 3 result as the controlling displayed repair design."""
     updated = dict(repair_data)
@@ -978,12 +986,14 @@ def apply_type_a_class3_result_to_repair(
     # Formula (20): total length = defect + 2*overlap + 2*taper.
     repair_length = updated["length"] + (2.0 * overlap_length) + (2.0 * taper_length)
 
-    if cloth_width_mm is None:
-        cloth_width_mm = updated.get("cloth_width_mm", PROWRAP["cloth_width_mm"])
-    cloth_width_mm = float(cloth_width_mm)
-    num_bands, procurement_axial_length = calculate_band_procurement(
-        repair_length, cloth_width_mm, PROWRAP["stitching_overlap_mm"]
+    if cloth_widths_mm is None and cloth_width_mm is None:
+        cloth_widths_mm = updated.get("cloth_widths_mm")
+    cloth_widths_mm = _selected_cloth_widths(cloth_widths_mm, cloth_width_mm)
+    band_procurement = optimize_band_procurement(
+        repair_length, cloth_widths_mm, PROWRAP["stitching_overlap_mm"]
     )
+    normalized_cloth_widths_mm = tuple(sorted(float(width) for width in cloth_widths_mm))
+    procurement_axial_length = band_procurement.procurement_axial_length_mm
 
     circumference_m = (math.pi * updated["od"]) / 1000.0
     axial_procurement_m = procurement_axial_length / 1000.0
@@ -1001,11 +1011,20 @@ def apply_type_a_class3_result_to_repair(
             "taper_length": taper_length,
             "overlap_shear_basis": "iso_formula_18_and_21",
             "overlap_shear_strength": PROWRAP["long_term_lap_shear"],
-            "num_bands": num_bands,
+            "num_bands_500": band_procurement.count_500,
+            "num_bands_300": band_procurement.count_300,
+            "num_bands": band_procurement.total_band_count,
             "proc_length": procurement_axial_length,
+            "covered_length_mm": band_procurement.covered_length_mm,
+            "excess_coverage_mm": band_procurement.excess_coverage_mm,
             "optimized_sqm": optimized_sqm,
             "epoxy_kg": optimized_sqm * 1.2,
-            "cloth_width_mm": cloth_width_mm,
+            "cloth_widths_mm": normalized_cloth_widths_mm,
+            "cloth_width_mm": (
+                normalized_cloth_widths_mm[0]
+                if normalized_cloth_widths_mm[0] == normalized_cloth_widths_mm[1]
+                else None
+            ),
             "is_upgraded": False,
         }
     )

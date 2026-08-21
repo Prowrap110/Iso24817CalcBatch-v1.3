@@ -12,6 +12,41 @@ from batch_schema import (
 )
 
 
+EXPECTED_MAIN_HEADERS = (
+    'Pipe OD [mm]',
+    'Nominal Wall [mm]',
+    'Pipe Yield [MPa]',
+    'Design Pressure [bar]',
+    'Operating Temperature [degC]',
+    'Mechanism',
+    'Defect Location',
+    'Defect Length [mm]',
+    'Defect Length Basis',
+    'Repair Group ID',
+    'Remaining Wall [mm]',
+    'Internal Corrosion Rate [mm/year]',
+    'Design Life [years]',
+    'Design Factor',
+    'Run Type A / Class 3 Check',
+    'Installation Temperature [degC]',
+    'Component Type',
+    'Cyclic Derating Factor',
+    'Axial Load Case',
+    'Prowrap CF Cloth Width 1 [mm]',
+    'Prowrap CF Cloth Width 2 [mm]',
+    'Wall Loss [%]',
+    'Required Structural Thickness [mm]',
+    'Installed Plies',
+    'Total Repair Length [mm]',
+    '500 mm Cloth Band Count',
+    '300 mm Cloth Band Count',
+    'Procurement Axial Length [mm]',
+    'Fabric Area [m2]',
+    'Epoxy Mass [kg]',
+    'Repair Zone Length [mm]',
+)
+
+
 def _template_workbook():
     from workbook_template import create_template_workbook
 
@@ -38,13 +73,13 @@ def test_template_has_common_info_and_row_table():
     assert workbook['Lists'].sheet_state == 'hidden'
 
 
-def test_template_uses_exact_calc_batch_v12_product_identity():
+def test_template_uses_exact_calc_batch_v13_product_identity():
     workbook = _template_workbook()
 
-    assert workbook.properties.title == 'PROWRAP CalcBatch v1.2'
-    assert workbook['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.2'
+    assert workbook.properties.title == 'PROWRAP CalcBatch v1.3'
+    assert workbook['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.3'
     assert workbook['Instructions']['A1'].value == (
-        'PROWRAP CalcBatch v1.2 — Instructions'
+        'PROWRAP CalcBatch v1.3 — Instructions'
     )
 
 
@@ -61,16 +96,17 @@ def test_template_has_blank_editable_cost_sheet_in_new_controlled_order():
         cost[address].protection.locked is False
         for address in ('B3', 'E3', 'H3')
     )
-    assert [cost.cell(5, column).value for column in range(1, 25)][-4:] == [
+    assert [cost.cell(5, column).value for column in range(1, 27)][-4:] == [
         'Cost', 'Price', 'Quantity', 'Total Amount',
     ]
-    assert cost['W6'].protection.locked is False
-    assert cost['X6'].protection.locked is True
-    assert cost['W6'].fill.fgColor.rgb == '00FFF2CC'
+    assert cost['Y6'].protection.locked is False
+    assert cost['Z6'].protection.locked is True
+    assert cost['Y6'].fill.fgColor.rgb == '00FFF2CC'
     assert any(
-        validation.type == 'decimal' and str(validation.sqref) == 'W6:W155'
+        validation.type == 'decimal' and str(validation.sqref) == 'Y6:Y155'
         for validation in cost.data_validations.dataValidation
     )
+    assert cost.tables['CostRows'].ref == 'A5:Z6'
     assert cost.freeze_panes == 'A6'
     assert cost.protection.sheet is True
     assert cost.protection.selectUnlockedCells is False
@@ -86,28 +122,32 @@ def test_template_visibly_highlights_cost_assumption_value_cells():
     assert [cell.number_format for cell in inputs] == ['#,##0.00'] * 3
     assert [cell.protection.locked for cell in inputs] == [False] * 3
     assert {str(validation.sqref) for validation in cost.data_validations.dataValidation} == {
-        'B3 E3 H3', 'W6:W155',
+        'B3 E3 H3', 'Y6:Y155',
     }
 
 
 def test_cost_quantity_columns_use_integer_display_without_populating_template_rows():
     """Catch plies or cloth-band counts being displayed as fractional quantities."""
     cost = _template_workbook()['Cost Calculation']
-    headers = [cost.cell(5, column).value for column in range(1, 23)]
+    headers = [cost.cell(5, column).value for column in range(1, 27)]
     count_columns = [
         headers.index(header) + 1
-        for header in ('Installed Plies', 'Cloth Band Count')
+        for header in (
+            'Installed Plies', '500 mm Cloth Band Count',
+            '300 mm Cloth Band Count',
+        )
     ]
 
     assert [cost.cell(5, column).value for column in count_columns] == [
-        'Installed Plies', 'Cloth Band Count',
+        'Installed Plies', '500 mm Cloth Band Count',
+        '300 mm Cloth Band Count',
     ]
     for row in (6, MAX_ROWS + 5):
         assert [cost.cell(row, column).value for column in count_columns] == [
-            None, None,
+            None, None, None,
         ]
         assert [cost.cell(row, column).number_format for column in count_columns] == [
-            '#,##0', '#,##0',
+            '#,##0', '#,##0', '#,##0',
         ]
         assert cost.cell(row, 11).number_format == '#,##0.00'
 
@@ -155,10 +195,13 @@ def test_template_uses_canonical_headings_and_a_filterable_compact_table():
     data = workbook['Batch Input & Results']
     headings = [cell.value for cell in data[1]]
 
-    assert headings == list(INPUT_HEADERS + OUTPUT_HEADERS)
+    assert tuple(headings) == EXPECTED_MAIN_HEADERS
+    assert tuple(headings) == INPUT_HEADERS + OUTPUT_HEADERS
+    assert len(INPUT_HEADERS) == 21
+    assert len(OUTPUT_HEADERS) == 10
     assert len(data.tables) == 1
     table = next(iter(data.tables.values()))
-    assert table.ref == 'A1:AC151'
+    assert table.ref == 'A1:AE151'
     assert table.autoFilter.ref == table.ref
 
 
@@ -219,9 +262,33 @@ def test_template_adds_dropdowns_for_every_selection_through_row_151():
             'ComponentTypeChoices': 'Component Type',
             'AxialLoadCaseChoices': 'Axial Load Case',
             'DefectLengthBasisChoices': 'Defect Length Basis',
+            'ClothWidth1Choices': 'Prowrap CF Cloth Width 1 [mm]',
+            'ClothWidth2Choices': 'Prowrap CF Cloth Width 2 [mm]',
         }.items()
     }
     assert validations == expected_choices
+
+
+def test_both_cloth_width_inputs_use_exact_300_500_lists_through_row_151():
+    """Catches either width column losing the controlled procurement choices."""
+    workbook = _template_workbook()
+    data = workbook['Batch Input & Results']
+    lists = workbook['Lists']
+    validations = {
+        validation.formula1: str(validation.sqref)
+        for validation in data.data_validations.dataValidation
+    }
+
+    for name, header in (
+        ('ClothWidth1Choices', 'Prowrap CF Cloth Width 1 [mm]'),
+        ('ClothWidth2Choices', 'Prowrap CF Cloth Width 2 [mm]'),
+    ):
+        target = data.cell(1, EXPECTED_MAIN_HEADERS.index(header) + 1)
+        assert validations[f'={name}'] == f'{target.column_letter}2:{target.column_letter}151'
+        defined_name = workbook.defined_names[name]
+        _, cell_range = next(defined_name.destinations)
+        cells = lists[cell_range.replace('$', '')]
+        assert [cell.value for row in cells for cell in row] == [300, 500]
 
 
 def test_template_mechanism_choices_and_guidance_distinguish_dent_routes():
@@ -252,8 +319,9 @@ def test_template_mechanism_choices_and_guidance_distinguish_dent_routes():
     assert 'full-pressure laminate' in instruction_text
     assert 'dent no-crack' in instruction_text
     assert 'component-pipe substrate load sharing' in instruction_text
-    assert 'download and use the current prowrap calcbatch v1.2 150/150 template' in instruction_text
-    assert 'older 500/2,000-row templates are not supported or guaranteed' in instruction_text
+    assert 'download and use the current prowrap calcbatch v1.3 150/150 template' in instruction_text
+    assert 'only current v1.3 templates and processed workbooks are supported' in instruction_text
+    assert 'older 500/2,000-row templates' not in instruction_text
     assert 'legacy dent' not in instruction_text
     assert 'older batch workbook' not in instruction_text
     assert 'not a complete dent integrity or fatigue acceptance assessment' in instruction_text
@@ -265,6 +333,14 @@ def test_long_dent_instruction_has_room_for_every_wrapped_line():
 
     assert instructions['A15'].alignment.wrap_text is True
     assert instructions.row_dimensions[15].height >= 48
+
+
+def test_cost_and_quantity_instruction_has_room_for_every_wrapped_line():
+    """Catch instruction 9 being clipped into the following formula line."""
+    instructions = _template_workbook()['Instructions']
+
+    assert instructions['A11'].alignment.wrap_text is True
+    assert instructions.row_dimensions[11].height >= 64
 
 
 def test_template_dropdowns_reject_invalid_selections_but_allow_unused_blank_rows():
@@ -289,6 +365,12 @@ def test_template_marks_inputs_editable_and_outputs_protected_with_clear_headers
     assert info['B3'].protection.locked is False
     assert data['A2'].protection.locked is False
     assert data.cell(2, input_count + 1).protection.locked is True
+    assert data.cell(
+        2, EXPECTED_MAIN_HEADERS.index('500 mm Cloth Band Count') + 1,
+    ).protection.locked is True
+    assert data.cell(
+        2, EXPECTED_MAIN_HEADERS.index('300 mm Cloth Band Count') + 1,
+    ).protection.locked is True
     assert data.protection.sheet is True
     defect_length_basis_column = INPUT_HEADERS.index('Defect Length Basis') + 1
     corrosion_rate_column = INPUT_HEADERS.index('Internal Corrosion Rate [mm/year]') + 1
@@ -380,9 +462,10 @@ def test_template_contains_no_formulas_and_has_user_guidance():
     assert 'the warnings worksheet lists permanent warning codes' in instruction_text
     assert 'processed result rows show permanent warning codes' not in instruction_text
     assert 'up to 150 populated main rows and 150 individual defects rows' in instruction_text
-    assert 'wall loss [%], required structural thickness [mm], installed plies, total repair length [mm], cloth band count, procurement axial length [mm], fabric area [m2], epoxy mass [kg], and repair zone length [mm]' in instruction_text
+    assert 'wall loss [%], required structural thickness [mm], installed plies, total repair length [mm], 500 mm cloth band count, 300 mm cloth band count, procurement axial length [mm], fabric area [m2], epoxy mass [kg], and repair zone length [mm]' in instruction_text
     assert 'quantity is editable' in instruction_text
     assert 'total amount = price x quantity' in instruction_text
+    assert 'cloth width 1 and cloth width 2' in instruction_text
     assert '300 mm and 500 mm' in instruction_text
     assert 'tg = 110' in instruction_text
     assert 'b3 (cf cost / m2), e3 (epoxy cost / kg), and h3 (price multiplier)' in instruction_text
@@ -394,7 +477,8 @@ def test_template_contains_no_formulas_and_has_user_guidance():
     assert 'defect length remains the complete outer-to-outer continuous repair-zone span.' in instruction_text
     assert 'one main row per continuous repair' in instruction_text
     assert 'one independent defect per row' not in instruction_text
-    assert 'older 500/2,000-row templates are not supported or guaranteed' in instruction_text
+    assert 'only current v1.3 templates and processed workbooks are supported' in instruction_text
+    assert 'older 500/2,000-row templates' not in instruction_text
     assert 'five-sheet, six-sheet, and seven-sheet' not in instruction_text
     assert 'preliminary screening' in ' '.join(
         str(cell.value).lower()
