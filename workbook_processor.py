@@ -379,8 +379,7 @@ def process_workbook(
             detail_sheet, detail_excel_row, issues=issues, candidate=candidate,
         )
 
-    # Task 3 owns the v1.3 A:Z commercial projection and controlled formulas.
-    # Until then, preserve only trusted editable assumptions and Quantity.
+    _write_cost_sheet(output_workbook)
     _write_warnings_sheet(output_workbook, calculations)
     _write_summary(
         output_workbook,
@@ -902,27 +901,34 @@ def _linked_main_row_for_detail(
 def _write_cost_sheet(workbook) -> None:
     source = workbook['Batch Input & Results']
     cost = workbook['Cost Calculation']
-    all_headers = INPUT_HEADERS + OUTPUT_HEADERS
-    source_columns = {
-        header: all_headers.index(header) + 1 for header in COST_SOURCE_HEADERS
-    }
+    source_columns = _columns_for_headers(source, COST_SOURCE_HEADERS)
+    cost_columns = _columns_for_headers(
+        cost, COST_TABLE_HEADERS, header_row=5,
+    )
     populated = _populated_rows(source)
     for output_row, (source_row, _) in enumerate(populated, start=COST_FIRST_DATA_ROW):
-        for destination_column, header in enumerate(COST_SOURCE_HEADERS, start=1):
-            cell = cost.cell(output_row, destination_column)
+        for header in COST_SOURCE_HEADERS:
+            cell = cost.cell(output_row, cost_columns[header])
             cell.value = source.cell(source_row, source_columns[header]).value
             cell.alignment = Alignment(vertical='top', wrap_text=True)
             cell.border = Border(bottom=source['A2'].border.bottom)
-        cost.cell(output_row, 21).value = cost_formula(output_row)
-        cost.cell(output_row, 22).value = price_formula(output_row)
-        cost.cell(output_row, 24).value = total_amount_formula(output_row)
-        for column in (21, 22, 24):
-            cell = cost.cell(output_row, column)
+        formula_builders = {
+            'Cost': cost_formula,
+            'Price': price_formula,
+            'Total Amount': total_amount_formula,
+        }
+        for header, formula_builder in formula_builders.items():
+            cell = cost.cell(output_row, cost_columns[header])
+            cell.value = formula_builder(output_row)
             cell.alignment = Alignment(vertical='top')
             cell.border = Border(bottom=source['A2'].border.bottom)
             cell.number_format = '#,##0.00'
     table = cost.tables['CostRows']
-    table.ref = f'A5:X{max(COST_FIRST_DATA_ROW, 5 + len(populated))}'
+    final_column_letter = cost.cell(5, len(COST_TABLE_HEADERS)).column_letter
+    table.ref = (
+        f'A5:{final_column_letter}'
+        f'{max(COST_FIRST_DATA_ROW, 5 + len(populated))}'
+    )
     table.autoFilter.ref = table.ref
 
 

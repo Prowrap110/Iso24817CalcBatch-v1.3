@@ -96,16 +96,17 @@ def test_template_has_blank_editable_cost_sheet_in_new_controlled_order():
         cost[address].protection.locked is False
         for address in ('B3', 'E3', 'H3')
     )
-    assert [cost.cell(5, column).value for column in range(1, 25)][-4:] == [
+    assert [cost.cell(5, column).value for column in range(1, 27)][-4:] == [
         'Cost', 'Price', 'Quantity', 'Total Amount',
     ]
-    assert cost['W6'].protection.locked is False
-    assert cost['X6'].protection.locked is True
-    assert cost['W6'].fill.fgColor.rgb == '00FFF2CC'
+    assert cost['Y6'].protection.locked is False
+    assert cost['Z6'].protection.locked is True
+    assert cost['Y6'].fill.fgColor.rgb == '00FFF2CC'
     assert any(
-        validation.type == 'decimal' and str(validation.sqref) == 'W6:W155'
+        validation.type == 'decimal' and str(validation.sqref) == 'Y6:Y155'
         for validation in cost.data_validations.dataValidation
     )
+    assert cost.tables['CostRows'].ref == 'A5:Z6'
     assert cost.freeze_panes == 'A6'
     assert cost.protection.sheet is True
     assert cost.protection.selectUnlockedCells is False
@@ -121,28 +122,32 @@ def test_template_visibly_highlights_cost_assumption_value_cells():
     assert [cell.number_format for cell in inputs] == ['#,##0.00'] * 3
     assert [cell.protection.locked for cell in inputs] == [False] * 3
     assert {str(validation.sqref) for validation in cost.data_validations.dataValidation} == {
-        'B3 E3 H3', 'W6:W155',
+        'B3 E3 H3', 'Y6:Y155',
     }
 
 
 def test_cost_quantity_columns_use_integer_display_without_populating_template_rows():
     """Catch plies or cloth-band counts being displayed as fractional quantities."""
     cost = _template_workbook()['Cost Calculation']
-    headers = [cost.cell(5, column).value for column in range(1, 23)]
+    headers = [cost.cell(5, column).value for column in range(1, 27)]
     count_columns = [
         headers.index(header) + 1
-        for header in ('Installed Plies', 'Cloth Band Count')
+        for header in (
+            'Installed Plies', '500 mm Cloth Band Count',
+            '300 mm Cloth Band Count',
+        )
     ]
 
     assert [cost.cell(5, column).value for column in count_columns] == [
-        'Installed Plies', 'Cloth Band Count',
+        'Installed Plies', '500 mm Cloth Band Count',
+        '300 mm Cloth Band Count',
     ]
     for row in (6, MAX_ROWS + 5):
         assert [cost.cell(row, column).value for column in count_columns] == [
-            None, None,
+            None, None, None,
         ]
         assert [cost.cell(row, column).number_format for column in count_columns] == [
-            '#,##0', '#,##0',
+            '#,##0', '#,##0', '#,##0',
         ]
         assert cost.cell(row, 11).number_format == '#,##0.00'
 

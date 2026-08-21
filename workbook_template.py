@@ -303,14 +303,27 @@ def _build_cost_calculation(worksheet) -> None:
         error='Enter a numeric quantity greater than or equal to zero, or leave this cell blank.',
         showErrorMessage=True, errorStyle='stop',
     )
-    quantity_validation.add(f'W{COST_FIRST_DATA_ROW}:W{COST_LAST_DATA_ROW}')
+    header_columns = {
+        header: column
+        for column, header in enumerate(COST_TABLE_HEADERS, start=1)
+    }
+    quantity_column = header_columns['Quantity']
+    quantity_letter = worksheet.cell(5, quantity_column).column_letter
+    quantity_validation.add(
+        f'{quantity_letter}{COST_FIRST_DATA_ROW}:'
+        f'{quantity_letter}{COST_LAST_DATA_ROW}'
+    )
     worksheet.add_data_validation(quantity_validation)
 
     for column, header in enumerate(COST_TABLE_HEADERS, start=1):
         apply_header_style(worksheet.cell(5, column, header), OUTPUT_HEADER_COLOR)
     worksheet.row_dimensions[5].height = HEADER_HEIGHT
 
-    table = Table(displayName='CostRows', ref='A5:X6')
+    final_column_letter = worksheet.cell(5, len(COST_TABLE_HEADERS)).column_letter
+    table = Table(
+        displayName='CostRows',
+        ref=f'A5:{final_column_letter}{COST_FIRST_DATA_ROW}',
+    )
     table.tableStyleInfo = TableStyleInfo(
         name='TableStyleMedium2', showFirstColumn=False, showLastColumn=False,
         showRowStripes=True, showColumnStripes=False,
@@ -320,9 +333,14 @@ def _build_cost_calculation(worksheet) -> None:
     for row in range(COST_FIRST_DATA_ROW, COST_LAST_DATA_ROW + 1):
         for column in range(1, len(COST_TABLE_HEADERS) + 1):
             worksheet.cell(row, column).number_format = '#,##0.00'
-        for column in (10, 15, 17):
+        for column in (
+            header_columns['Design Life [years]'],
+            header_columns['Installed Plies'],
+            header_columns['500 mm Cloth Band Count'],
+            header_columns['300 mm Cloth Band Count'],
+        ):
             worksheet.cell(row, column).number_format = '#,##0'
-        quantity_cell = worksheet.cell(row, 23)
+        quantity_cell = worksheet.cell(row, quantity_column)
         quantity_cell.fill = PatternFill(fill_type='solid', fgColor=_COST_INPUT_COLOR)
         quantity_protection = copy(quantity_cell.protection)
         quantity_protection.locked = False
@@ -335,7 +353,7 @@ def _build_cost_calculation(worksheet) -> None:
     worksheet.protection.selectLockedCells = False
     worksheet.protection.selectUnlockedCells = False
     set_capped_column_widths(worksheet)
-    worksheet.merge_cells('A1:X1')
+    worksheet.merge_cells(f'A1:{final_column_letter}1')
 
 
 def _build_warnings(worksheet) -> None:

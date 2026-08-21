@@ -1,3 +1,4 @@
+from copy import copy
 from datetime import UTC, datetime
 from io import BytesIO
 import math
@@ -18,6 +19,7 @@ from batch_schema import (
     OUTPUT_HEADERS,
 )
 from batch_status import CalculationStatus
+from cost_calculation import cost_formula, price_formula, total_amount_formula
 from engine.corrosion_defects import ENTER_MANUALLY
 from tests.helpers import (
     detail_values,
@@ -1064,7 +1066,7 @@ def test_formula_issue_has_priority_over_far_input_row_issue():
     assert [issue.code for issue in inspection.workbook_errors] == ['FORMULA_NOT_ALLOWED']
 
 
-def test_commercial_assumptions_are_safe_to_reupload_before_task_3_projection():
+def test_commercial_assumptions_are_safe_to_reupload():
     """Catches a current workbook rebuild that drops editable assumptions."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
@@ -1097,7 +1099,7 @@ def test_commercial_assumptions_are_safe_to_reupload_before_task_3_projection():
 def test_cost_quantity_accepts_only_blank_or_finite_non_negative_numbers(value, expected_code):
     """Catches untrusted quantity inputs reaching the rebuilt commercial output."""
     workbook = _workbook(workbook_bytes_with_rows([valid_row_values()]))
-    workbook['Cost Calculation']['W6'] = value
+    workbook['Cost Calculation']['Y6'] = value
 
     if isinstance(value, float) and not math.isfinite(value):
         issues = _quantity_errors(workbook)
@@ -1111,7 +1113,7 @@ def test_cost_quantity_accepts_only_blank_or_finite_non_negative_numbers(value, 
 
 
 def test_processed_cost_quantity_is_preserved_by_compact_cost_row_position():
-    """Catches re-upload dropping Quantity or trusting pre-Task-3 engineering cells."""
+    """Catches re-upload dropping Quantity or trusting uploaded engineering cells."""
     first = process_workbook(
         workbook_bytes_with_rows([
             valid_row_values(),
@@ -1121,25 +1123,25 @@ def test_processed_cost_quantity_is_preserved_by_compact_cost_row_position():
     )
     workbook = _workbook(first.workbook_bytes)
     cost = workbook['Cost Calculation']
-    cost['W6'], cost['W7'] = 0, 2.5
+    cost['Y6'], cost['Y7'] = 0, 2.5
     cost['A6'] = 999999.0
 
     second = process_workbook(_saved(workbook), processed_at=FIXED_TIME)
     rebuilt = _workbook(second.workbook_bytes)['Cost Calculation']
 
-    assert [rebuilt[address].value for address in ('W6', 'W7')] == [0, 2.5]
-    assert rebuilt['A6'].value is None
+    assert [rebuilt[address].value for address in ('Y6', 'Y7')] == [0, 2.5]
+    assert rebuilt['A6'].value == 457.2
 
 
 def test_whitespace_only_cost_quantity_rebuilds_as_a_true_blank():
     """Catches a visual blank Quantity becoming a text value in the trusted output."""
     workbook = _workbook(workbook_bytes_with_rows([valid_row_values()]))
-    workbook['Cost Calculation']['W6'] = ' \t '
+    workbook['Cost Calculation']['Y6'] = ' \t '
 
     result = process_workbook(_saved(workbook), processed_at=FIXED_TIME)
     rebuilt = _workbook(result.workbook_bytes)['Cost Calculation']
 
-    assert rebuilt['W6'].value is None
+    assert rebuilt['Y6'].value is None
 
 
 def test_whitespace_only_commercial_input_is_rebuilt_as_a_true_blank():
@@ -1160,12 +1162,12 @@ def test_altered_cost_formula_is_rejected():
         processed_at=FIXED_TIME,
     )
     workbook = _workbook(result.workbook_bytes)
-    workbook['Cost Calculation']['U6'] = '=1+1'
+    workbook['Cost Calculation']['W6'] = '=1+1'
 
     inspection = inspect_workbook(_saved(workbook))
 
     assert [issue.code for issue in inspection.workbook_errors] == ['FORMULA_NOT_ALLOWED']
-    assert 'Cost Calculation!U6' in inspection.workbook_errors[0].message
+    assert 'Cost Calculation!W6' in inspection.workbook_errors[0].message
 
 
 @pytest.mark.parametrize(('address', 'value'), [
@@ -1355,23 +1357,26 @@ def test_processed_warning_register_remains_filterable_while_protected():
 
 
 def test_uploaded_cost_table_values_are_never_trusted():
-    """Catches user-edited pre-Task-3 engineering rows being copied into output."""
+    """Catches user-edited engineering rows being copied into output."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
         processed_at=FIXED_TIME,
     )
     edited = _workbook(first.workbook_bytes)
     edited['Cost Calculation']['A6'] = 999999.0
-    edited['Cost Calculation']['S6'] = 999999.0
+    edited['Cost Calculation']['U6'] = 999999.0
 
     second = process_workbook(_saved(edited), processed_at=FIXED_TIME)
     regenerated = _workbook(second.workbook_bytes)
 
-    assert regenerated['Cost Calculation']['A6'].value is None
-    assert regenerated['Cost Calculation']['S6'].value is None
+    cost = regenerated['Cost Calculation']
+    data = regenerated['Batch Input & Results']
+    headings = tuple(cell.value for cell in data[1])
+    assert cost['A6'].value == data.cell(2, headings.index('Pipe OD [mm]') + 1).value
+    assert cost['U6'].value == data.cell(2, headings.index('Fabric Area [m2]') + 1).value
 
 
-def test_cleared_processed_defect_regenerates_a_blank_pre_task_3_cost_row():
+def test_cleared_processed_defect_regenerates_a_blank_cost_row():
     """Catches stale uploaded commercial-row values surviving a rebuild."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
@@ -1386,8 +1391,8 @@ def test_cleared_processed_defect_regenerates_a_blank_pre_task_3_cost_row():
     cost = _workbook(second.workbook_bytes)['Cost Calculation']
 
     assert second.populated_rows == 0
-    assert [cost.cell(6, column).value for column in range(1, 25)] == [None] * 24
-    assert cost.tables['CostRows'].ref == 'A5:X6'
+    assert [cost.cell(6, column).value for column in range(1, 27)] == [None] * 26
+    assert cost.tables['CostRows'].ref == 'A5:Z6'
 
 
 def test_processed_workbook_requests_full_automatic_recalculation():
@@ -1401,6 +1406,76 @@ def test_processed_workbook_requests_full_automatic_recalculation():
     assert workbook.calculation.calcMode == 'auto'
     assert workbook.calculation.fullCalcOnLoad is True
     assert workbook.calculation.forceFullCalc is True
+
+
+def test_processed_cost_sheet_maps_22_semantic_fields_and_exact_formulas():
+    """Catches positional drift after the dual-width and dual-count insertion."""
+    result = process_workbook(
+        workbook_bytes_with_rows([valid_row_values()]),
+        processed_at=FIXED_TIME,
+    )
+    workbook = _workbook(result.workbook_bytes)
+    source = workbook['Batch Input & Results']
+    cost = workbook['Cost Calculation']
+    source_headers = (
+        'Pipe OD [mm]', 'Nominal Wall [mm]', 'Pipe Yield [MPa]',
+        'Design Pressure [bar]', 'Operating Temperature [degC]',
+        'Mechanism', 'Defect Location', 'Defect Length [mm]',
+        'Remaining Wall [mm]', 'Design Life [years]', 'Design Factor',
+        'Prowrap CF Cloth Width 1 [mm]',
+        'Prowrap CF Cloth Width 2 [mm]', 'Wall Loss [%]',
+        'Required Structural Thickness [mm]', 'Installed Plies',
+        'Total Repair Length [mm]', '500 mm Cloth Band Count',
+        '300 mm Cloth Band Count', 'Procurement Axial Length [mm]',
+        'Fabric Area [m2]', 'Epoxy Mass [kg]',
+    )
+    source_columns = {
+        cell.value: cell.column for cell in source[1] if cell.value is not None
+    }
+
+    assert tuple(cell.value for cell in cost[5]) == source_headers + (
+        'Cost', 'Price', 'Quantity', 'Total Amount',
+    )
+    assert [cost.cell(6, column).value for column in range(1, 23)] == [
+        source.cell(2, source_columns[header]).value for header in source_headers
+    ]
+    assert [cost[address].value for address in ('W6', 'X6', 'Z6')] == [
+        '=IF(OR($B$3="",$E$3="",U6="",V6=""),"",U6*$B$3+V6*$E$3)',
+        '=IF(OR(W6="",$H$3=""),"",W6*$H$3)',
+        '=IF(OR(X6="",Y6=""),"",X6*Y6)',
+    ]
+    assert cost['Y6'].value is None
+    assert cost.tables['CostRows'].ref == 'A5:Z6'
+    assert cost.tables['CostRows'].autoFilter.ref == 'A5:Z6'
+
+
+def test_reupload_regenerates_cost_formulas_and_protections_but_keeps_quantity():
+    """Catches trusting uploaded formula styling or losing editable commercial data."""
+    first = process_workbook(
+        workbook_bytes_with_rows([valid_row_values()]),
+        processed_at=FIXED_TIME,
+    )
+    edited = _workbook(first.workbook_bytes)
+    cost = edited['Cost Calculation']
+    cost['B3'], cost['E3'], cost['H3'], cost['Y6'] = 50.0, 20.0, 1.5, 3.0
+    for address in ('W6', 'X6', 'Z6'):
+        cost[address].protection = copy(cost['Y6'].protection)
+    cost['Y6'].fill = copy(cost['W6'].fill)
+
+    second = process_workbook(_saved(edited), processed_at=FIXED_TIME)
+    rebuilt = _workbook(second.workbook_bytes)['Cost Calculation']
+
+    assert [rebuilt[address].value for address in ('B3', 'E3', 'H3', 'Y6')] == [
+        50.0, 20.0, 1.5, 3.0,
+    ]
+    assert [rebuilt[address].value for address in ('W6', 'X6', 'Z6')] == [
+        cost_formula(6), price_formula(6), total_amount_formula(6),
+    ]
+    assert [rebuilt[address].protection.locked for address in ('W6', 'X6', 'Z6')] == [
+        True, True, True,
+    ]
+    assert rebuilt['Y6'].protection.locked is False
+    assert rebuilt['Y6'].fill.fgColor.rgb == '00FFF2CC'
 
 
 def test_processed_workbook_updates_summary_without_main_diagnostic_json():
