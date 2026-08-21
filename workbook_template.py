@@ -54,6 +54,12 @@ _CHOICES = {
     ),
     'AxialLoadCaseChoices': ('Axial Load Case', (0, 1)),
     'DefectLengthBasisChoices': ('Defect Length Basis', DEFECT_LENGTH_BASES),
+    'ClothWidth1Choices': (
+        'Prowrap CF Cloth Width 1 [mm]', (300, 500),
+    ),
+    'ClothWidth2Choices': (
+        'Prowrap CF Cloth Width 2 [mm]', (300, 500),
+    ),
     'SeparationChoices': ('Separation exceeds 3t', ('Yes', None)),
 }
 
@@ -64,6 +70,8 @@ _MAIN_DROPDOWN_NAMES = (
     'ComponentTypeChoices',
     'AxialLoadCaseChoices',
     'DefectLengthBasisChoices',
+    'ClothWidth1Choices',
+    'ClothWidth2Choices',
 )
 _DETAIL_DROPDOWN_NAMES = ('SeparationChoices',)
 
@@ -99,9 +107,13 @@ _HEADER_NOTES = {
     'Component Type': 'Required. Choose Straight, Bend, Tee, Flange, or Reducer.',
     'Cyclic Derating Factor': 'Required. Enter a factor greater than zero and no greater than one.',
     'Axial Load Case': 'Required. Choose 0 for no axial load case or 1 for axial load case.',
-    'Prowrap CF Cloth Width [mm]': (
-        'Required. Enter a cloth width greater than the 50 mm stitch overlap; '
-        '300 mm and 500 mm are approved configured widths.'
+    'Prowrap CF Cloth Width 1 [mm]': (
+        'Required. Choose 300 mm or 500 mm. Select the same width twice to '
+        'restrict procurement to one cloth width.'
+    ),
+    'Prowrap CF Cloth Width 2 [mm]': (
+        'Required. Choose 300 mm or 500 mm. Select different widths to make '
+        'both approved cloth widths available for procurement.'
     ),
 }
 
@@ -202,10 +214,19 @@ def _build_data_sheet(worksheet) -> None:
     worksheet.protection.selectLockedCells = False
     worksheet.protection.selectUnlockedCells = False
     set_capped_column_widths(worksheet)
-    for column in ('D', 'E', 'H', 'I', 'J', 'T', 'U', 'V'):
-        worksheet.column_dimensions[column].width = 28
-    for column in ('W', 'Y'):
-        worksheet.column_dimensions[column].width = 16
+    for header in (
+        'Design Pressure [bar]',
+        'Operating Temperature [degC]',
+        'Defect Length [mm]',
+        'Defect Length Basis',
+        'Repair Group ID',
+        'Prowrap CF Cloth Width 1 [mm]',
+        'Prowrap CF Cloth Width 2 [mm]',
+        'Wall Loss [%]',
+    ):
+        worksheet.column_dimensions[header_column_letter(worksheet, header)].width = 28
+    for header in ('Required Structural Thickness [mm]', 'Total Repair Length [mm]'):
+        worksheet.column_dimensions[header_column_letter(worksheet, header)].width = 16
 
 
 def _build_individual_defects(worksheet) -> None:
@@ -392,10 +413,10 @@ def _build_instructions(worksheet) -> None:
         ('A3', '1. Complete Customer, Project Location, and Report No once on the Batch Information sheet.', False),
         ('A4', '2. Enter one main row per continuous repair on Batch Input & Results; the first input is Pipe OD [mm].', False),
         ('A5', f'3. Enter up to {MAX_ROWS} populated main rows and {MAX_DETAIL_ROWS} Individual Defects rows. Blank rows are ignored; partially populated rows receive INPUT ERROR.', False),
-        ('A6', '4. The only main outputs are Wall Loss [%], Required Structural Thickness [mm], Installed Plies, Total Repair Length [mm], Cloth Band Count, Procurement Axial Length [mm], Fabric Area [m2], Epoxy Mass [kg], and Repair Zone Length [mm].', False),
+        ('A6', '4. The only main outputs are Wall Loss [%], Required Structural Thickness [mm], Installed Plies, Total Repair Length [mm], 500 mm Cloth Band Count, 300 mm Cloth Band Count, Procurement Axial Length [mm], Fabric Area [m2], Epoxy Mass [kg], and Repair Zone Length [mm].', False),
         ('A7', '5. Use the dropdown selections exactly as shown. Units are mm, MPa, bar, degC, years, m2, and kg where stated.', False),
         ('A8', '6. Internal Corrosion Rate [mm/year] is required only where Mechanism is Corrosion and Defect Location is Internal.', False),
-        ('A9', '7. Prowrap CF Cloth Width must be greater than the fixed 50 mm stitch overlap. The approved configured widths are 300 mm and 500 mm; other valid widths require review.', False),
+        ('A9', '7. The approved choices are 300 mm and 500 mm for both Prowrap CF Cloth Width 1 and Cloth Width 2. Duplicate choices restrict procurement to one width; different choices make both widths available. The fixed stitch overlap is 50 mm.', False),
         ('A10', '8. The Warnings worksheet lists permanent warning codes, their full meaning, required action, and affected Excel rows. Use the app validation preview for row-level status and correction messages.', False),
         ('A11', '9. On Cost Calculation, B3 (CF Cost / m2), E3 (Epoxy Cost / kg), and H3 (Price Multiplier) are highlighted and editable, as is Quantity. The assumptions may be blank or retain values from a previously processed workbook. Quantity is editable only as a blank or non-negative number and may retain a value from a previously processed workbook.', False),
         ('A12', '10. Cost = Fabric Area x CF Cost / m2 + Epoxy Mass x Epoxy Cost / kg.', False),

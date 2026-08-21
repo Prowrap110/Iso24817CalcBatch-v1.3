@@ -12,6 +12,41 @@ from batch_schema import (
 )
 
 
+EXPECTED_MAIN_HEADERS = (
+    'Pipe OD [mm]',
+    'Nominal Wall [mm]',
+    'Pipe Yield [MPa]',
+    'Design Pressure [bar]',
+    'Operating Temperature [degC]',
+    'Mechanism',
+    'Defect Location',
+    'Defect Length [mm]',
+    'Defect Length Basis',
+    'Repair Group ID',
+    'Remaining Wall [mm]',
+    'Internal Corrosion Rate [mm/year]',
+    'Design Life [years]',
+    'Design Factor',
+    'Run Type A / Class 3 Check',
+    'Installation Temperature [degC]',
+    'Component Type',
+    'Cyclic Derating Factor',
+    'Axial Load Case',
+    'Prowrap CF Cloth Width 1 [mm]',
+    'Prowrap CF Cloth Width 2 [mm]',
+    'Wall Loss [%]',
+    'Required Structural Thickness [mm]',
+    'Installed Plies',
+    'Total Repair Length [mm]',
+    '500 mm Cloth Band Count',
+    '300 mm Cloth Band Count',
+    'Procurement Axial Length [mm]',
+    'Fabric Area [m2]',
+    'Epoxy Mass [kg]',
+    'Repair Zone Length [mm]',
+)
+
+
 def _template_workbook():
     from workbook_template import create_template_workbook
 
@@ -155,10 +190,13 @@ def test_template_uses_canonical_headings_and_a_filterable_compact_table():
     data = workbook['Batch Input & Results']
     headings = [cell.value for cell in data[1]]
 
-    assert headings == list(INPUT_HEADERS + OUTPUT_HEADERS)
+    assert tuple(headings) == EXPECTED_MAIN_HEADERS
+    assert tuple(headings) == INPUT_HEADERS + OUTPUT_HEADERS
+    assert len(INPUT_HEADERS) == 21
+    assert len(OUTPUT_HEADERS) == 10
     assert len(data.tables) == 1
     table = next(iter(data.tables.values()))
-    assert table.ref == 'A1:AC151'
+    assert table.ref == 'A1:AE151'
     assert table.autoFilter.ref == table.ref
 
 
@@ -219,9 +257,33 @@ def test_template_adds_dropdowns_for_every_selection_through_row_151():
             'ComponentTypeChoices': 'Component Type',
             'AxialLoadCaseChoices': 'Axial Load Case',
             'DefectLengthBasisChoices': 'Defect Length Basis',
+            'ClothWidth1Choices': 'Prowrap CF Cloth Width 1 [mm]',
+            'ClothWidth2Choices': 'Prowrap CF Cloth Width 2 [mm]',
         }.items()
     }
     assert validations == expected_choices
+
+
+def test_both_cloth_width_inputs_use_exact_300_500_lists_through_row_151():
+    """Catches either width column losing the controlled procurement choices."""
+    workbook = _template_workbook()
+    data = workbook['Batch Input & Results']
+    lists = workbook['Lists']
+    validations = {
+        validation.formula1: str(validation.sqref)
+        for validation in data.data_validations.dataValidation
+    }
+
+    for name, header in (
+        ('ClothWidth1Choices', 'Prowrap CF Cloth Width 1 [mm]'),
+        ('ClothWidth2Choices', 'Prowrap CF Cloth Width 2 [mm]'),
+    ):
+        target = data.cell(1, EXPECTED_MAIN_HEADERS.index(header) + 1)
+        assert validations[f'={name}'] == f'{target.column_letter}2:{target.column_letter}151'
+        defined_name = workbook.defined_names[name]
+        _, cell_range = next(defined_name.destinations)
+        cells = lists[cell_range.replace('$', '')]
+        assert [cell.value for row in cells for cell in row] == [300, 500]
 
 
 def test_template_mechanism_choices_and_guidance_distinguish_dent_routes():
@@ -289,6 +351,12 @@ def test_template_marks_inputs_editable_and_outputs_protected_with_clear_headers
     assert info['B3'].protection.locked is False
     assert data['A2'].protection.locked is False
     assert data.cell(2, input_count + 1).protection.locked is True
+    assert data.cell(
+        2, EXPECTED_MAIN_HEADERS.index('500 mm Cloth Band Count') + 1,
+    ).protection.locked is True
+    assert data.cell(
+        2, EXPECTED_MAIN_HEADERS.index('300 mm Cloth Band Count') + 1,
+    ).protection.locked is True
     assert data.protection.sheet is True
     defect_length_basis_column = INPUT_HEADERS.index('Defect Length Basis') + 1
     corrosion_rate_column = INPUT_HEADERS.index('Internal Corrosion Rate [mm/year]') + 1
@@ -380,9 +448,10 @@ def test_template_contains_no_formulas_and_has_user_guidance():
     assert 'the warnings worksheet lists permanent warning codes' in instruction_text
     assert 'processed result rows show permanent warning codes' not in instruction_text
     assert 'up to 150 populated main rows and 150 individual defects rows' in instruction_text
-    assert 'wall loss [%], required structural thickness [mm], installed plies, total repair length [mm], cloth band count, procurement axial length [mm], fabric area [m2], epoxy mass [kg], and repair zone length [mm]' in instruction_text
+    assert 'wall loss [%], required structural thickness [mm], installed plies, total repair length [mm], 500 mm cloth band count, 300 mm cloth band count, procurement axial length [mm], fabric area [m2], epoxy mass [kg], and repair zone length [mm]' in instruction_text
     assert 'quantity is editable' in instruction_text
     assert 'total amount = price x quantity' in instruction_text
+    assert 'cloth width 1 and cloth width 2' in instruction_text
     assert '300 mm and 500 mm' in instruction_text
     assert 'tg = 110' in instruction_text
     assert 'b3 (cf cost / m2), e3 (epoxy cost / kg), and h3 (price multiplier)' in instruction_text

@@ -4,7 +4,6 @@ import math
 import zipfile
 
 import pytest
-import cost_calculation
 from openpyxl import load_workbook
 from openpyxl.worksheet.formula import ArrayFormula, DataTableFormula
 
@@ -19,16 +18,9 @@ from batch_schema import (
     OUTPUT_HEADERS,
 )
 from batch_status import CalculationStatus
-from cost_calculation import (
-    COST_SOURCE_HEADERS,
-    COST_TABLE_HEADERS,
-    cost_formula,
-    price_formula,
-)
 from engine.corrosion_defects import ENTER_MANUALLY
 from tests.helpers import (
     detail_values,
-    legacy_workbook_bytes_with_rows,
     valid_row_values,
     workbook_bytes_with_rows,
 )
@@ -116,7 +108,8 @@ def _manual_row(group='R-001'):
         'Defect Length Basis': ENTER_MANUALLY,
         'Repair Group ID': group,
         'Remaining Wall [mm]': None,
-        'Prowrap CF Cloth Width [mm]': 500.0,
+        'Prowrap CF Cloth Width 1 [mm]': 500.0,
+        'Prowrap CF Cloth Width 2 [mm]': 500.0,
         'Run Type A / Class 3 Check': 'Yes',
     })
 
@@ -380,6 +373,104 @@ def test_processed_manual_workbook_reuploads_without_changing_results():
     assert _result_signature(second.workbook_bytes) == _result_signature(first.workbook_bytes)
 
 
+def _main_output_values(workbook_bytes):
+    data = _workbook(workbook_bytes)['Batch Input & Results']
+    headings = tuple(cell.value for cell in data[1])
+    return {
+        header: data.cell(2, headings.index(header) + 1).value
+        for header in OUTPUT_HEADERS
+    }
+
+
+def _warning_rows(workbook_bytes):
+    warnings = _workbook(workbook_bytes)['Warnings']
+    return tuple(
+        tuple(warnings.cell(row, column).value for column in range(1, 4))
+        for row in range(4, warnings.max_row + 1)
+    )
+
+
+def _summary_signature(workbook_bytes):
+    summary = _workbook(workbook_bytes)['Summary']
+    return tuple(summary.cell(row, 2).value for row in (
+        10, 13, 14, 15, 16, 17, 19, 20, 21, 22,
+    ))
+
+
+def test_reversed_mixed_width_order_is_identical_through_processing_and_reupload():
+    """Catches row width order changing procurement or trusted workbook results."""
+    first = process_workbook(
+        workbook_bytes_with_rows([valid_row_values(**{
+            'Prowrap CF Cloth Width 1 [mm]': 300.0,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
+        })]),
+        processed_at=FIXED_TIME,
+    )
+    reversed_widths = process_workbook(
+        workbook_bytes_with_rows([valid_row_values(**{
+            'Prowrap CF Cloth Width 1 [mm]': 500.0,
+            'Prowrap CF Cloth Width 2 [mm]': 300.0,
+        })]),
+        processed_at=FIXED_TIME,
+    )
+    reuploaded = process_workbook(
+        first.workbook_bytes,
+        processed_at=FIXED_TIME,
+    )
+
+    assert _main_output_values(reversed_widths.workbook_bytes) == (
+        _main_output_values(first.workbook_bytes)
+    )
+    assert _main_output_values(reuploaded.workbook_bytes) == (
+        _main_output_values(first.workbook_bytes)
+    )
+    assert reversed_widths.status_counts == first.status_counts
+    assert reuploaded.status_counts == first.status_counts
+    assert _warning_rows(reversed_widths.workbook_bytes) == _warning_rows(first.workbook_bytes)
+    assert _warning_rows(reuploaded.workbook_bytes) == _warning_rows(first.workbook_bytes)
+    assert _summary_signature(reversed_widths.workbook_bytes) == _summary_signature(first.workbook_bytes)
+    assert _summary_signature(reuploaded.workbook_bytes) == _summary_signature(first.workbook_bytes)
+
+
+def test_width_availability_does_not_change_structural_status_or_warning_outputs():
+    """Catches procurement availability leaking into engineering classification."""
+    results = []
+    for width_1, width_2 in ((300.0, 300.0), (500.0, 500.0), (300.0, 500.0)):
+        results.append(process_workbook(
+            workbook_bytes_with_rows([valid_row_values(**{
+                'Operating Temperature [degC]': 91.0,
+                'Prowrap CF Cloth Width 1 [mm]': width_1,
+                'Prowrap CF Cloth Width 2 [mm]': width_2,
+            })]),
+            processed_at=FIXED_TIME,
+        ))
+
+    structural_headers = (
+        'Wall Loss [%]',
+        'Required Structural Thickness [mm]',
+        'Installed Plies',
+        'Total Repair Length [mm]',
+        'Repair Zone Length [mm]',
+    )
+    structural_signatures = [
+        tuple(_main_output_values(result.workbook_bytes)[header] for header in structural_headers)
+        for result in results
+    ]
+
+    assert structural_signatures == [structural_signatures[0]] * 3
+    assert [result.status_counts for result in results] == [
+        {'REVIEW REQUIRED': 1},
+    ] * 3
+    warning_signatures = [_warning_rows(result.workbook_bytes) for result in results]
+    assert warning_signatures[0][0][0] == 'W001'
+    assert 'qualified Prowrap limit' in warning_signatures[0][0][1]
+    assert warning_signatures[0][0][2] == '2'
+    assert warning_signatures == [warning_signatures[0]] * 3
+    assert [_summary_signature(result.workbook_bytes) for result in results] == [
+        _summary_signature(results[0].workbook_bytes),
+    ] * 3
+
+
 def test_manual_system_error_marks_details_without_breaking_row_continuation(
     monkeypatch,
 ):
@@ -429,8 +520,8 @@ def _capture_successful_mechanisms(monkeypatch):
     return received
 
 
-def test_legacy_dent_is_canonical_through_preview_processing_and_reupload(monkeypatch):
-    """Catches old Dent uploads leaking the legacy name past the workbook boundary."""
+def test_deprecated_dent_value_is_canonical_through_preview_and_reupload(monkeypatch):
+    """Catches the accepted Dent value leaking past current row normalization."""
     received = _capture_successful_mechanisms(monkeypatch)
     source = workbook_bytes_with_rows(
         [valid_row_values(Mechanism='Dent')],
@@ -448,16 +539,20 @@ def test_legacy_dent_is_canonical_through_preview_processing_and_reupload(monkey
     assert reinspection.preview[0]['Mechanism'] == 'Dent w/crack'
     assert received and set(received) == {'Dent w/crack'}
     assert first_workbook['Batch Input & Results']['F2'].value == 'Dent w/crack'
-    assert first_workbook['Cost Calculation']['F6'].value == 'Dent w/crack'
     assert second_workbook['Batch Input & Results']['F2'].value == 'Dent w/crack'
-    assert second_workbook['Cost Calculation']['F6'].value == 'Dent w/crack'
     assert first_workbook['Batch Input & Results']['A2'].value == 457.2
     main_headings = tuple(
         cell.value for cell in first_workbook['Batch Input & Results'][1]
     )
-    assert first_workbook['Batch Input & Results'].cell(
-        2, main_headings.index('Prowrap CF Cloth Width [mm]') + 1,
-    ).value == 300.0
+    assert [
+        first_workbook['Batch Input & Results'].cell(
+            2, main_headings.index(header) + 1,
+        ).value
+        for header in (
+            'Prowrap CF Cloth Width 1 [mm]',
+            'Prowrap CF Cloth Width 2 [mm]',
+        )
+    ] == [300.0, 300.0]
     assert first_workbook['Batch Information']['B3'].value == 'Batch Customer'
     assert [second_workbook['Cost Calculation'][address].value for address in (
         'B3', 'E3', 'H3',
@@ -480,9 +575,7 @@ def test_dent_no_crack_is_stable_through_preview_processing_and_reupload(monkeyp
     assert reinspection.preview[0]['Mechanism'] == 'Dent no-crack'
     assert received and set(received) == {'Dent no-crack'}
     assert first_workbook['Batch Input & Results']['F2'].value == 'Dent no-crack'
-    assert first_workbook['Cost Calculation']['F6'].value == 'Dent no-crack'
     assert second_workbook['Batch Input & Results']['F2'].value == 'Dent no-crack'
-    assert second_workbook['Cost Calculation']['F6'].value == 'Dent no-crack'
 
 
 def test_preview_uses_the_same_qualification_review_status_as_processing():
@@ -971,8 +1064,8 @@ def test_formula_issue_has_priority_over_far_input_row_issue():
     assert [issue.code for issue in inspection.workbook_errors] == ['FORMULA_NOT_ALLOWED']
 
 
-def test_processed_cost_formulas_and_commercial_inputs_are_safe_to_reupload():
-    """Catches deny-all formula scanning or a rebuild that drops cost assumptions."""
+def test_commercial_assumptions_are_safe_to_reupload_before_task_3_projection():
+    """Catches a current workbook rebuild that drops editable assumptions."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
         processed_at=FIXED_TIME,
@@ -1018,7 +1111,7 @@ def test_cost_quantity_accepts_only_blank_or_finite_non_negative_numbers(value, 
 
 
 def test_processed_cost_quantity_is_preserved_by_compact_cost_row_position():
-    """Catches a re-upload dropping valid Quantity values or trusting engineering cells."""
+    """Catches re-upload dropping Quantity or trusting pre-Task-3 engineering cells."""
     first = process_workbook(
         workbook_bytes_with_rows([
             valid_row_values(),
@@ -1035,9 +1128,7 @@ def test_processed_cost_quantity_is_preserved_by_compact_cost_row_position():
     rebuilt = _workbook(second.workbook_bytes)['Cost Calculation']
 
     assert [rebuilt[address].value for address in ('W6', 'W7')] == [0, 2.5]
-    assert rebuilt['X6'].value == cost_calculation.total_amount_formula(6)
-    assert rebuilt['X7'].value == cost_calculation.total_amount_formula(7)
-    assert rebuilt['A6'].value == 457.2
+    assert rebuilt['A6'].value is None
 
 
 def test_whitespace_only_cost_quantity_rebuilds_as_a_true_blank():
@@ -1049,7 +1140,6 @@ def test_whitespace_only_cost_quantity_rebuilds_as_a_true_blank():
     rebuilt = _workbook(result.workbook_bytes)['Cost Calculation']
 
     assert rebuilt['W6'].value is None
-    assert rebuilt['X6'].value == cost_calculation.total_amount_formula(6)
 
 
 def test_whitespace_only_commercial_input_is_rebuilt_as_a_true_blank():
@@ -1061,7 +1151,6 @@ def test_whitespace_only_commercial_input_is_rebuilt_as_a_true_blank():
     rebuilt = _workbook(result.workbook_bytes)['Cost Calculation']
 
     assert rebuilt['B3'].value is None
-    assert rebuilt['U6'].value == cost_formula(6)
 
 
 def test_altered_cost_formula_is_rejected():
@@ -1129,26 +1218,6 @@ def test_exactly_150_controlled_rows_remain_valid():
     assert inspection.workbook_errors == ()
 
 
-def test_maximum_processed_cost_region_ends_at_row_155():
-    """Catches Cost formulas or the compact table extending beyond 150 rows."""
-    result = process_workbook(
-        workbook_bytes_with_rows([valid_row_values() for _ in range(150)]),
-        FIXED_TIME,
-        '150-repairs.xlsx',
-    )
-    cost = _workbook(result.workbook_bytes)['Cost Calculation']
-
-    assert cost.tables['CostRows'].ref == 'A5:X155'
-    assert [cost[f'{column}155'].value for column in ('U', 'V', 'X')] == [
-        cost_calculation.cost_formula(155),
-        cost_calculation.price_formula(155),
-        cost_calculation.total_amount_formula(155),
-    ]
-    assert [cost[f'{column}156'].value for column in ('U', 'V', 'W', 'X')] == [
-        None, None, None, None,
-    ]
-
-
 def test_exactly_150_detail_rows_are_kept_and_first_row_beyond_is_rejected():
     """Catches an off-by-one detail bound or an unbounded detail scan."""
     exact = workbook_bytes_with_rows(
@@ -1195,16 +1264,16 @@ def test_one_invalid_row_does_not_stop_valid_rows_and_inputs_are_preserved():
 def test_processed_warning_sheet_consolidates_codes_and_affected_rows():
     """Catches repeated long warning text or one legend entry per defect row."""
     source = workbook_bytes_with_rows([
-        valid_row_values(**{'Prowrap CF Cloth Width [mm]': 250.0}),
-        valid_row_values(**{'Prowrap CF Cloth Width [mm]': 250.0}),
+        valid_row_values(**{'Operating Temperature [degC]': 91.0}),
+        valid_row_values(**{'Operating Temperature [degC]': 91.0}),
     ])
 
     result = process_workbook(source, processed_at=FIXED_TIME)
     workbook = _workbook(result.workbook_bytes)
     warnings = workbook['Warnings']
 
-    assert warnings['A4'].value == 'W018'
-    assert '300 mm or 500 mm' in warnings['B4'].value
+    assert warnings['A4'].value == 'W001'
+    assert 'qualified Prowrap limit' in warnings['B4'].value
     assert warnings['C4'].value == '2, 3'
     assert warnings['A4'].font.italic is False
     assert list(warnings.tables) == ['WarningRegister']
@@ -1226,13 +1295,14 @@ def test_compact_main_sheet_keeps_warning_and_summary_aggregation_in_memory(
                 'Required Structural Thickness [mm]': 3.0,
                 'Installed Plies': 3,
                 'Total Repair Length [mm]': 600.0,
-                'Cloth Band Count': 2,
+                '500 mm Cloth Band Count': 0,
+                '300 mm Cloth Band Count': 2,
                 'Procurement Axial Length [mm]': 650.0,
                 'Fabric Area [m2]': 0.3,
                 'Epoxy Mass [kg]': 0.2,
                 'Repair Zone Length [mm]': 100.0,
                 'Thickness Calculation Method': 'Type A (Load Sharing)',
-                'Compliance Warnings': ('W018',),
+                'Compliance Warnings': ('W001',),
             },
         )
 
@@ -1250,7 +1320,7 @@ def test_compact_main_sheet_keeps_warning_and_summary_aggregation_in_memory(
     assert tuple(cell.value for cell in data[1]) == INPUT_HEADERS + OUTPUT_HEADERS
     assert 'Calculation Status' not in OUTPUT_HEADERS
     assert 'Compliance Warnings' not in OUTPUT_HEADERS
-    assert warnings['A4'].value == 'W018'
+    assert warnings['A4'].value == 'W001'
     assert warnings['C4'].value == '2'
     assert summary['B14'].value == 1
     assert summary['B19'].value == 1
@@ -1274,7 +1344,7 @@ def test_processed_warning_register_remains_filterable_while_protected():
     """Catches sheet protection disabling the warning table filter controls."""
     result = process_workbook(
         workbook_bytes_with_rows([
-            valid_row_values(**{'Prowrap CF Cloth Width [mm]': 250.0}),
+            valid_row_values(**{'Operating Temperature [degC]': 91.0}),
         ]),
         processed_at=FIXED_TIME,
     )
@@ -1284,58 +1354,8 @@ def test_processed_warning_register_remains_filterable_while_protected():
     assert warnings.protection.autoFilter is False
 
 
-def test_previous_five_sheet_template_is_accepted_and_upgraded():
-    """Catches a release that strands users holding the previous template."""
-    source = legacy_workbook_bytes_with_rows(
-        [valid_row_values()], sheet_count=5,
-    )
-    inspection = inspect_workbook(source)
-    result = process_workbook(source, processed_at=FIXED_TIME)
-
-    assert inspection.workbook_errors == ()
-    assert _workbook(result.workbook_bytes).sheetnames == [
-        'Batch Information', 'Batch Input & Results', 'Individual Defects',
-        'Cost Calculation', 'Warnings', 'Summary', 'Instructions', 'Lists',
-    ]
-
-
-def test_previous_six_sheet_template_is_accepted_and_upgraded():
-    """Catches a release that strands users holding the warning-register template."""
-    source = legacy_workbook_bytes_with_rows(
-        [valid_row_values()], sheet_count=6,
-    )
-    result = process_workbook(source, processed_at=FIXED_TIME)
-
-    assert _workbook(result.workbook_bytes).sheetnames == [
-        'Batch Information', 'Batch Input & Results', 'Individual Defects',
-        'Cost Calculation', 'Warnings', 'Summary', 'Instructions', 'Lists',
-    ]
-
-
-def test_processed_cost_sheet_maps_requested_values_and_formulas():
-    """Catches wrong source-column order or missing controlled formulas."""
-    result = process_workbook(
-        workbook_bytes_with_rows([valid_row_values()]),
-        processed_at=FIXED_TIME,
-    )
-    workbook = _workbook(result.workbook_bytes)
-    source = workbook['Batch Input & Results']
-    cost = workbook['Cost Calculation']
-    source_headings = tuple(cell.value for cell in source[1])
-
-    assert tuple(cell.value for cell in cost[5]) == COST_TABLE_HEADERS
-    assert [cost.cell(6, column).value for column in range(1, 21)] == [
-        source.cell(2, source_headings.index(header) + 1).value
-        for header in COST_SOURCE_HEADERS
-    ]
-    assert cost['U6'].value == cost_formula(6)
-    assert cost['V6'].value == price_formula(6)
-    assert cost['X6'].value == cost_calculation.total_amount_formula(6)
-    assert cost.tables['CostRows'].ref == 'A5:X6'
-
-
 def test_uploaded_cost_table_values_are_never_trusted():
-    """Catches user-edited or tampered commercial rows being copied into output."""
+    """Catches user-edited pre-Task-3 engineering rows being copied into output."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
         processed_at=FIXED_TIME,
@@ -1347,53 +1367,12 @@ def test_uploaded_cost_table_values_are_never_trusted():
     second = process_workbook(_saved(edited), processed_at=FIXED_TIME)
     regenerated = _workbook(second.workbook_bytes)
 
-    assert regenerated['Cost Calculation']['A6'].value == 457.2
-    main = regenerated['Batch Input & Results']
-    headings = tuple(cell.value for cell in main[1])
-    assert regenerated['Cost Calculation']['S6'].value == main.cell(
-        2, headings.index(COST_SOURCE_HEADERS[18]) + 1,
-    ).value
+    assert regenerated['Cost Calculation']['A6'].value is None
+    assert regenerated['Cost Calculation']['S6'].value is None
 
 
-def test_processed_cost_sheet_uses_one_compact_row_per_populated_defect():
-    """Catches sparse source row numbers leaking into compact cost-table layout."""
-    workbook = _workbook(workbook_bytes_with_rows([
-        valid_row_values(),
-        valid_row_values(**{'Pipe OD [mm]': 508.0}),
-        valid_row_values(**{'Pipe OD [mm]': 610.0}),
-    ]))
-    data = workbook['Batch Input & Results']
-    for column in range(1, len(INPUT_HEADERS) + 1):
-        data.cell(3, column).value = None
-
-    result = process_workbook(_saved(workbook), processed_at=FIXED_TIME)
-    cost = _workbook(result.workbook_bytes)['Cost Calculation']
-
-    assert [cost['A6'].value, cost['A7'].value, cost['A8'].value] == [
-        457.2, 610.0, None,
-    ]
-    assert cost['U7'].value == cost_formula(7)
-    assert cost.tables['CostRows'].ref == 'A5:X7'
-
-
-def test_processed_cost_table_filter_covers_every_compact_row():
-    """Catches the table filter retaining the one-row template range."""
-    result = process_workbook(
-        workbook_bytes_with_rows([
-            valid_row_values(),
-            valid_row_values(**{'Pipe OD [mm]': 508.0}),
-            valid_row_values(**{'Pipe OD [mm]': 610.0}),
-        ]),
-        processed_at=FIXED_TIME,
-    )
-    table = _workbook(result.workbook_bytes)['Cost Calculation'].tables['CostRows']
-
-    assert table.ref == 'A5:X8'
-    assert table.autoFilter.ref == table.ref
-
-
-def test_cleared_processed_defect_ignores_stale_exact_cost_formulas():
-    """Catches valid generated formulas blocking a safe processed-workbook rebuild."""
+def test_cleared_processed_defect_regenerates_a_blank_pre_task_3_cost_row():
+    """Catches stale uploaded commercial-row values surviving a rebuild."""
     first = process_workbook(
         workbook_bytes_with_rows([valid_row_values()]),
         processed_at=FIXED_TIME,

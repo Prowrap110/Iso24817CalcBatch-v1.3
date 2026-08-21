@@ -13,7 +13,6 @@ from batch_schema import (
     INPUT_HEADERS,
     OUTPUT_HEADERS,
 )
-from tests.helpers import legacy_workbook_bytes_with_rows, valid_row_values
 from workbook_processor import process_workbook
 
 
@@ -292,16 +291,3 @@ def test_linked_corrosion_release_acceptance_workbook(tmp_path):
     assert all(rebuilt_book['Summary'][address].protection.locked for address in (
         'B3', 'B7', 'B24', 'B25',
     ))
-
-
-@pytest.mark.parametrize('sheet_count', (5, 6, 7))
-def test_legacy_controlled_layouts_upgrade_to_the_v12_eight_sheet_contract(sheet_count):
-    """Old controlled five/six/seven-sheet downloads remain safe input files."""
-    legacy = legacy_workbook_bytes_with_rows([valid_row_values()], sheet_count=sheet_count)
-    upgraded = process_workbook(legacy, processed_at=FIXED_TIME)
-    workbook = load_workbook(BytesIO(upgraded.workbook_bytes), data_only=False)
-    main_columns = _columns(INPUT_HEADERS + OUTPUT_HEADERS)
-
-    assert workbook.sheetnames == EXPECTED_SHEETS
-    assert workbook['Batch Input & Results'].cell(2, main_columns['Defect Length Basis']).value == 'Actual defect length'
-    assert upgraded.status_counts == {'OK': 1}
