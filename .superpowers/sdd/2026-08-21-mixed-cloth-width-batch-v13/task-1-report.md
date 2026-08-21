@@ -91,3 +91,23 @@ The repository is deliberately between contracts after Task 1: workbook,
 Cost, app, and acceptance tests remain red until Tasks 2-4 migrate those
 consumers. Task 2 should begin with the current schema rather than attempting
 historical workbook compatibility.
+
+## Review hardening round
+
+Two review gaps were closed without retaining any production change:
+
+1. The byte-exact snapshot test is now parameterized over both accepted exact
+   copies, `engine/band_procurement.py` and `engine/prowrap_materials.py`.
+   A temporary sentinel appended to `prowrap_materials.py` produced the
+   intended RED result (`1 failed, 1 passed`); removing it restored the exact
+   accepted hash and returned `2 passed`.
+2. A controlling Type A/Class 3 regression now fixes the initial repair to
+   `300/300`, then independently calls the second optimizer site with
+   `300/300`, `500/500`, `300/500`, and reversed `500/300`. It asserts literal
+   500/300 counts, gross procurement, covered length, controlling status, and
+   structural invariance. A temporary stale-width mutation made the test fail
+   on the `500/500` literal plan; restoring the production code returned the
+   combined new-test gate to `12 passed`.
+
+The mutation diffs were removed completely. Only the two test files and this
+report changed in the hardening commit.
