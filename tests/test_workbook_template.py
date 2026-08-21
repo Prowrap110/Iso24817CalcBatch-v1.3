@@ -335,6 +335,14 @@ def test_long_dent_instruction_has_room_for_every_wrapped_line():
     assert instructions.row_dimensions[15].height >= 48
 
 
+def test_cost_and_quantity_instruction_has_room_for_every_wrapped_line():
+    """Catch instruction 9 being clipped into the following formula line."""
+    instructions = _template_workbook()['Instructions']
+
+    assert instructions['A11'].alignment.wrap_text is True
+    assert instructions.row_dimensions[11].height >= 64
+
+
 def test_template_dropdowns_reject_invalid_selections_but_allow_unused_blank_rows():
     """Catches validations that block a blank unused row or silently accept bad selections."""
     workbook = _template_workbook()

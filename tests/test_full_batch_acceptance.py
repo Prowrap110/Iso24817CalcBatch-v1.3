@@ -117,6 +117,8 @@ def test_mixed_width_v13_release_acceptance_workbook(tmp_path):
     assert input_book['Instructions']['A1'].value == (
         'PROWRAP CalcBatch v1.3 — Instructions'
     )
+    assert input_book['Instructions']['A11'].alignment.wrap_text is True
+    assert input_book['Instructions'].row_dimensions[11].height >= 64
     assert len(INPUT_HEADERS) == 21
     assert len(OUTPUT_HEADERS) == 10
     assert tuple(cell.value for cell in main_input[1]) == INPUT_HEADERS + OUTPUT_HEADERS

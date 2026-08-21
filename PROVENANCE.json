@@ -30,6 +30,6 @@
     "cost_calculation.py": "3ee7d7436edf19e8d669d320bd2d5cf73269ef697d6f8ad36a54ad5a13e5f1ea",
     "scripts/create_acceptance_workbook.py": "2cea3b7a4262e7735f58bdeb06369074b00409934ca99996dba895c77e3dd2c4",
     "workbook_processor.py": "89b2246991fe52705ed4129157adb861704d4b5142d887339e2d72513d8e7e49",
-    "workbook_template.py": "42939dd3c80fbfd9e9099448da48bce0586fca57f45864a4d418bec0cd32b58d"
+    "workbook_template.py": "fd04e0f8d8d77dadca14a38b7af4b0288ee5e2523dd79c50c06ee1f9623ef0b9"
   }
 }

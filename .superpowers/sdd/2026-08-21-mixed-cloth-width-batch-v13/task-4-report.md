@@ -26,3 +26,26 @@ No final artifact marker was run. No final template, acceptance, or result workb
 ## Concern / controller handoff
 
 The wide main/detail/Cost tables are necessarily compressed in one-page temporary LibreOffice print previews. The controller's dedicated spreadsheet artifact workflow must perform the final authoritative workbook rendering and artifact generation after review. Publication and deployment remain separately authorized future actions.
+
+## Final artifact-review fix: clipped Cost/Quantity instruction
+
+The controller's artifact-tool render found that Instructions row 11 clipped
+the last line of instruction 9 into row 12 in both generated workbooks. The
+fix was limited to that row height; no wording, formula, workbook structure,
+or other row height changed.
+
+- RED: the new blank-template and production acceptance assertions both failed
+  at the observed `32 pt` height (`2 failed`).
+- Implementation: Instructions row 11 now uses `64 pt`; row 12 remains `32 pt`.
+- Focused GREEN with provenance recomputation: `3 passed in 1.67s`.
+- Affected template/acceptance/provenance files: `28 passed in 7.18s`.
+- Fresh full suite: `325 passed in 78.29s`.
+- Temporary template and processed workbooks were generated through production
+  paths. Focused `Instructions!A9:A13` render copies each produced a one-page
+  PDF. Visual inspection showed all three lines of instruction 9 with clear
+  space before instruction 10 in both renders.
+
+`PROVENANCE.json` now records the refreshed `workbook_template.py` SHA-256
+`fd04e0f8d8d77dadca14a38b7af4b0288ee5e2523dd79c50c06ee1f9623ef0b9`.
+The final artifact marker was not rerun, final workbook files were not touched,
+and no remote, deployment, v1.2 source, or public resource was changed.

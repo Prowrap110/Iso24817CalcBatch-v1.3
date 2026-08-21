@@ -459,6 +459,7 @@ def _build_instructions(worksheet) -> None:
     worksheet.column_dimensions['A'].width = 115
     for row in range(3, 25):
         worksheet.row_dimensions[row].height = 32
+    worksheet.row_dimensions[11].height = 64
     worksheet.row_dimensions[15].height = 48
     worksheet.row_dimensions[24].height = 64
     worksheet.row_dimensions[1].height = 28
