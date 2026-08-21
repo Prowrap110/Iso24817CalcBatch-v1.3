@@ -14,7 +14,7 @@ from workbook_processor import WorkbookProcessingError, inspect_workbook, proces
 from workbook_template import create_template_workbook
 
 
-_TEMPLATE_FILENAME = 'PROWRAP_CalcBatch_v1.2_Template.xlsx'
+_TEMPLATE_FILENAME = 'PROWRAP_CalcBatch_v1.3_Template.xlsx'
 _PROCESSED_BYTES_KEY = 'processed_workbook_bytes'
 _PROCESSED_IDENTITY_KEY = 'processed_source_identity'
 _PROCESSED_NAME_KEY = 'processed_workbook_name'
@@ -37,7 +37,7 @@ def _source_identity(data: bytes, filename: str) -> str:
 
 def _output_filename(processed_at: datetime) -> str:
     return (
-        'PROWRAP_CalcBatch_v1.2_Results_'
+        'PROWRAP_CalcBatch_v1.3_Results_'
         f"{processed_at.strftime('%Y%m%d_%H%M%S')}.xlsx"
     )
 
@@ -104,15 +104,15 @@ def _detail_preview(data: bytes) -> list[dict[str, object]]:
 
 
 def main() -> None:
-    st.set_page_config(page_title='PROWRAP CalcBatch v1.2', layout='wide')
-    st.title('PROWRAP CalcBatch v1.2')
+    st.set_page_config(page_title='PROWRAP CalcBatch v1.3', layout='wide')
+    st.title('PROWRAP CalcBatch v1.3')
     st.write(
         'Calculate up to 150 continuous-repair rows and 150 linked individual-defect rows from one controlled Excel workbook. '
         'Customer, Project Location, and Report No are entered once for the whole batch.'
     )
     st.info(
-        'This is a separate batch calculator. It does not change, replace, or connect to '
-        'the existing PROWRAP v1.1 calculator.'
+        'This is a separate v1.3 batch calculator. It does not change, replace, or '
+        'connect to the existing CalcBatch v1.2 or PROWRAP v1.1 calculators.'
     )
 
     st.subheader('1. Download template')
@@ -128,8 +128,13 @@ def main() -> None:
         'Supported mechanisms: Corrosion, Dent w/crack, Dent no-crack, Leak, and Crack.'
     )
     st.caption(
-        'Download and use the current PROWRAP CalcBatch v1.2 150/150 template. '
-        'Older 500/2,000-row templates are not supported or guaranteed.'
+        'Download and use the current PROWRAP CalcBatch v1.3 150/150 template. '
+        'Only current v1.3 templates and processed workbooks are supported.'
+    )
+    st.caption(
+        'The main table has 21 controlled input columns and 10 controlled result '
+        'columns. Select the two cloth-width inputs for 300-only, 500-only, or '
+        'optimized mixed-width procurement.'
     )
     st.caption(
         'For Enter manually, use a stable Repair Group ID on the main repair row '

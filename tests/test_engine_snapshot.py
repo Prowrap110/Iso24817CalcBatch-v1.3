@@ -18,8 +18,8 @@ def test_pinned_engine_revision_is_emitted_in_processed_workbook():
     )
     workbook = load_workbook(BytesIO(processed.workbook_bytes), data_only=False)
 
-    assert workbook['Summary']['B24'].value == '1.2.0'
-    assert workbook['Summary']['B25'].value == '91b68d6'
+    assert workbook['Summary']['B24'].value == '1.3.0'
+    assert workbook['Summary']['B25'].value == 'da83373'
 
 
 def test_pinned_engine_exposes_v12_corrosion_assessment_contract():

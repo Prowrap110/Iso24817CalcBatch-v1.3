@@ -132,7 +132,7 @@ _DETAIL_HEADER_NOTES = {
 def create_template_workbook() -> bytes:
     """Return a ready-to-fill controlled batch workbook as ``.xlsx`` bytes."""
     workbook = Workbook()
-    workbook.properties.title = 'PROWRAP CalcBatch v1.2'
+    workbook.properties.title = 'PROWRAP CalcBatch v1.3'
     batch_info = workbook.active
     batch_info.title = 'Batch Information'
     data = workbook.create_sheet('Batch Input & Results')
@@ -159,7 +159,7 @@ def create_template_workbook() -> bytes:
 
 
 def _build_batch_information(worksheet) -> None:
-    worksheet['A1'] = 'PROWRAP CalcBatch v1.2'
+    worksheet['A1'] = 'PROWRAP CalcBatch v1.3'
     worksheet['A1'].font = Font(name='Calibri', size=16, bold=True, color=INPUT_HEADER_COLOR)
     worksheet['A2'] = 'Enter the three values that apply to every defect row in this batch.'
     worksheet['A2'].alignment = Alignment(wrap_text=True)
@@ -427,7 +427,7 @@ def _build_summary(worksheet) -> None:
 
 def _build_instructions(worksheet) -> None:
     lines = (
-        ('A1', 'PROWRAP CalcBatch v1.2 — Instructions', True),
+        ('A1', 'PROWRAP CalcBatch v1.3 — Instructions', True),
         ('A3', '1. Complete Customer, Project Location, and Report No once on the Batch Information sheet.', False),
         ('A4', '2. Enter one main row per continuous repair on Batch Input & Results; the first input is Pipe OD [mm].', False),
         ('A5', f'3. Enter up to {MAX_ROWS} populated main rows and {MAX_DETAIL_ROWS} Individual Defects rows. Blank rows are ignored; partially populated rows receive INPUT ERROR.', False),
@@ -440,7 +440,7 @@ def _build_instructions(worksheet) -> None:
         ('A12', '10. Cost = Fabric Area x CF Cost / m2 + Epoxy Mass x Epoxy Cost / kg.', False),
         ('A13', '11. Price = Cost x Price Multiplier. Total Amount = Price x Quantity. No currency symbol is fixed, so use one consistent currency for both material rates.', False),
         ('A14', '12. The downloaded input template contains no formulas. A processed workbook contains only controlled Cost, Price, and Total Amount formulas and may be safely uploaded again.', False),
-        ('A15', '13. Download and use the current PROWRAP CalcBatch v1.2 150/150 template. Older 500/2,000-row templates are not supported or guaranteed.', False),
+        ('A15', '13. Download and use the current PROWRAP CalcBatch v1.3 150/150 template. Only current v1.3 templates and processed workbooks are supported.', False),
         ('A16', '14. Dent w/crack uses a full-pressure laminate. An eligible external Dent no-crack uses component-pipe substrate load sharing. Dent no-crack selects a calculation basis; it is not a complete dent integrity or fatigue acceptance assessment.', False),
         ('A17', 'Status meanings', True),
         ('A18', 'OK — a valid result with no review warning.', False),

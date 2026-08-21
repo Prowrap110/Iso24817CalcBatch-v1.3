@@ -24,6 +24,13 @@ contain a second optimizer. The resulting package-adapted
 **CalcBatch release version:** `1.2.0`
 **Verified linked-corrosion source revision:** `91b68d64508a4786934f0e17f2aea0dbebf745a7` (`91b68d6` recorded in processed workbooks)
 
+## Current CalcBatch v1.3 emitted provenance
+
+CalcBatch v1.3 emits Batch Engine Version `1.3.0` and accepted single-case
+Source Engine Revision `da83373` on every processed workbook Summary. The
+complete accepted revision and current batch-module hashes are recorded in
+`PROVENANCE.json`.
+
 ## Historical batch baseline (not the emitted source revision)
 
 The original batch baseline was copied from
@@ -68,10 +75,9 @@ replaced by the source module:
   remain batch behavior; the v1.2 corrosion basis applies only to external
   corrosion.
 
-CalcBatch v1.2 emits Batch Engine Version `1.2.0` and Source Engine Revision
-`91b68d6` on every processed main row and in the Summary. The historical v1.1
-baseline revision is retained here only for traceability; it is never emitted
-as the current linked-corrosion engine revision.
+Historical CalcBatch v1.2 workbooks emitted Batch Engine Version `1.2.0` and
+Source Engine Revision `91b68d6`. Those identifiers are retained here only for
+traceability and are not emitted by the current v1.3 product.
 
 ## Approved dent mechanism split
 

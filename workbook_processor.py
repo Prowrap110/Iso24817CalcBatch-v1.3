@@ -67,8 +67,8 @@ from warning_catalog import format_affected_rows, warning_meaning
 from engine.corrosion_defects import ENTER_MANUALLY
 
 
-BATCH_ENGINE_VERSION = '1.2.0'
-SOURCE_ENGINE_REVISION = '91b68d6'
+BATCH_ENGINE_VERSION = '1.3.0'
+SOURCE_ENGINE_REVISION = 'da83373'
 _COMMON_HEADERS = ('Customer', 'Project Location', 'Report No')
 _CURRENT_SHEETS = (
     'Batch Information',
@@ -85,7 +85,7 @@ _MAX_ZIP_ENTRIES = 250
 _MAX_ZIP_UNCOMPRESSED_BYTES = 25 * 1024 * 1024
 _MAX_ZIP_ENTRY_BYTES = 16 * 1024 * 1024
 _MAX_ZIP_COMPRESSION_RATIO = 100
-# The blank 150-row eight-sheet v1.2 template emits 11,711 worksheet cell
+# The blank 150-row eight-sheet v1.3 template emits 11,711 worksheet cell
 # elements. This ceiling retains more than 70 percent headroom while bounding
 # the number of Python cell objects openpyxl may materialize.
 _MAX_WORKBOOK_CELLS = 20_000

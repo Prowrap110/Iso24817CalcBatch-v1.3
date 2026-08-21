@@ -73,13 +73,13 @@ def test_template_has_common_info_and_row_table():
     assert workbook['Lists'].sheet_state == 'hidden'
 
 
-def test_template_uses_exact_calc_batch_v12_product_identity():
+def test_template_uses_exact_calc_batch_v13_product_identity():
     workbook = _template_workbook()
 
-    assert workbook.properties.title == 'PROWRAP CalcBatch v1.2'
-    assert workbook['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.2'
+    assert workbook.properties.title == 'PROWRAP CalcBatch v1.3'
+    assert workbook['Batch Information']['A1'].value == 'PROWRAP CalcBatch v1.3'
     assert workbook['Instructions']['A1'].value == (
-        'PROWRAP CalcBatch v1.2 — Instructions'
+        'PROWRAP CalcBatch v1.3 — Instructions'
     )
 
 
@@ -319,8 +319,9 @@ def test_template_mechanism_choices_and_guidance_distinguish_dent_routes():
     assert 'full-pressure laminate' in instruction_text
     assert 'dent no-crack' in instruction_text
     assert 'component-pipe substrate load sharing' in instruction_text
-    assert 'download and use the current prowrap calcbatch v1.2 150/150 template' in instruction_text
-    assert 'older 500/2,000-row templates are not supported or guaranteed' in instruction_text
+    assert 'download and use the current prowrap calcbatch v1.3 150/150 template' in instruction_text
+    assert 'only current v1.3 templates and processed workbooks are supported' in instruction_text
+    assert 'older 500/2,000-row templates' not in instruction_text
     assert 'legacy dent' not in instruction_text
     assert 'older batch workbook' not in instruction_text
     assert 'not a complete dent integrity or fatigue acceptance assessment' in instruction_text
@@ -468,7 +469,8 @@ def test_template_contains_no_formulas_and_has_user_guidance():
     assert 'defect length remains the complete outer-to-outer continuous repair-zone span.' in instruction_text
     assert 'one main row per continuous repair' in instruction_text
     assert 'one independent defect per row' not in instruction_text
-    assert 'older 500/2,000-row templates are not supported or guaranteed' in instruction_text
+    assert 'only current v1.3 templates and processed workbooks are supported' in instruction_text
+    assert 'older 500/2,000-row templates' not in instruction_text
     assert 'five-sheet, six-sheet, and seven-sheet' not in instruction_text
     assert 'preliminary screening' in ' '.join(
         str(cell.value).lower()

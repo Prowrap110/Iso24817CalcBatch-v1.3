@@ -1495,8 +1495,8 @@ def test_processed_workbook_updates_summary_without_main_diagnostic_json():
     assert summary['B8'].value == '2026-08-14T12:00:00Z'
     assert summary['B10'].value == 1
     assert summary['B15'].value == 1
-    assert summary['B24'].value == '1.2.0'
-    assert summary['B25'].value == '91b68d6'
+    assert summary['B24'].value == '1.3.0'
+    assert summary['B25'].value == 'da83373'
 
 
 def test_processed_workbook_records_the_sanitized_uploaded_source_name():

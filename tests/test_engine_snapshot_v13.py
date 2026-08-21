@@ -1,4 +1,5 @@
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -46,3 +47,46 @@ def test_engine_source_records_full_revision_and_all_accepted_module_hashes():
         ACTIVE_BATCH_CALCULATIONS_HASH
     )
     assert ACTIVE_BATCH_CALCULATIONS_HASH in provenance
+
+
+def test_release_provenance_pins_accepted_source_and_current_batch_hashes():
+    manifest = json.loads(
+        (REPOSITORY_ROOT / 'PROVENANCE.json').read_text(encoding='utf-8')
+    )
+
+    assert manifest['product'] == {
+        'name': 'PROWRAP CalcBatch v1.3',
+        'version': '1.3.0',
+        'repository': 'Prowrap110/Iso24817CalcBatch-v1.3',
+        'branch': 'release/v1.3.0',
+        'template_filename': 'PROWRAP_CalcBatch_v1.3_Template.xlsx',
+        'results_prefix': 'PROWRAP_CalcBatch_v1.3_Results_',
+    }
+    assert manifest['accepted_single_case_source'] == {
+        'repository': 'Prowrap110/Iso24817Calcv1.3',
+        'commit': ACCEPTED_SOURCE_REVISION,
+        'short_revision': 'da83373',
+    }
+    assert manifest['batch_source'] == {
+        'imported_v12_commit': '5b916df79c6e24462c4cd9194ce8938fafcb70e3',
+        'release_preparation_base': '420a40dc84e9f787ff24c0862ec9307729b929d2',
+    }
+    assert manifest['accepted_engine_module_sha256'] == ACCEPTED_ENGINE_HASHES
+    assert manifest['active_engine_module_sha256'] == {
+        'engine/prowrap_calculations.py': ACTIVE_BATCH_CALCULATIONS_HASH,
+    }
+
+    expected_batch_modules = (
+        'app.py',
+        'batch_schema.py',
+        'cost_calculation.py',
+        'scripts/create_acceptance_workbook.py',
+        'workbook_processor.py',
+        'workbook_template.py',
+    )
+    assert tuple(manifest['batch_module_sha256']) == expected_batch_modules
+    for module_name in expected_batch_modules:
+        module_bytes = (REPOSITORY_ROOT / module_name).read_bytes()
+        assert manifest['batch_module_sha256'][module_name] == (
+            hashlib.sha256(module_bytes).hexdigest()
+        )

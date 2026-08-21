@@ -1,4 +1,4 @@
-"""Create the controlled six-row source workbook for 150-row batch acceptance checks."""
+"""Create the controlled six-row CalcBatch v1.3 acceptance source workbook."""
 
 from __future__ import annotations
 
@@ -20,21 +20,21 @@ from workbook_template import create_template_workbook
 _COMMON_VALUES = {
     'Customer': 'Acceptance Customer',
     'Project Location': 'Acceptance Location',
-    'Report No': 'ACCEPT-001',
+    'Report No': 'ACCEPT-V13-001',
 }
 
-_CORROSION_COMPARISON_ROW = {
-    'Pipe OD [mm]': 1016.0,
-    'Nominal Wall [mm]': 12.0,
-    'Pipe Yield [MPa]': 450.0,
-    'Design Pressure [bar]': 104.9,
+_BASE_ROW = {
+    'Pipe OD [mm]': 457.2,
+    'Nominal Wall [mm]': 9.53,
+    'Pipe Yield [MPa]': 359.0,
+    'Design Pressure [bar]': 50.0,
     'Operating Temperature [degC]': 40.0,
     'Mechanism': 'Corrosion',
     'Defect Location': 'External',
-    'Defect Length [mm]': 1000.0,
+    'Defect Length [mm]': 300.0,
     'Defect Length Basis': 'Actual defect length',
     'Repair Group ID': None,
-    'Remaining Wall [mm]': 9.652,
+    'Remaining Wall [mm]': 4.5,
     'Internal Corrosion Rate [mm/year]': None,
     'Design Life [years]': 20,
     'Design Factor': 0.72,
@@ -43,18 +43,8 @@ _CORROSION_COMPARISON_ROW = {
     'Component Type': 'Straight',
     'Cyclic Derating Factor': 1.0,
     'Axial Load Case': 0,
-    'Prowrap CF Cloth Width [mm]': 500.0,
-}
-
-_DENT_ROW = {
-    **_CORROSION_COMPARISON_ROW,
-    'Pipe OD [mm]': 457.2,
-    'Nominal Wall [mm]': 9.53,
-    'Pipe Yield [MPa]': 359.0,
-    'Design Pressure [bar]': 50.0,
-    'Defect Length [mm]': 100.0,
-    'Defect Length Basis': None,
-    'Remaining Wall [mm]': 9.53,
+    'Prowrap CF Cloth Width 1 [mm]': 300.0,
+    'Prowrap CF Cloth Width 2 [mm]': 300.0,
 }
 
 
@@ -83,63 +73,46 @@ def create_acceptance_workbook(destination: str | Path) -> Path:
 
 
 def _acceptance_rows() -> tuple[dict[str, object], ...]:
+    """Freeze width availability, row-error, and no-solution release cases."""
     return (
         {
-            **_CORROSION_COMPARISON_ROW,
+            **_BASE_ROW,
         },
         {
-            **_CORROSION_COMPARISON_ROW,
-            'Defect Length Basis': 'Independent defects',
+            **_BASE_ROW,
+            'Prowrap CF Cloth Width 1 [mm]': 500.0,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
         },
         {
-            **_CORROSION_COMPARISON_ROW,
-            'Defect Length Basis': 'Enter manually',
-            'Repair Group ID': 'R-001',
-            'Remaining Wall [mm]': None,
+            **_BASE_ROW,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
         },
         {
-            **_CORROSION_COMPARISON_ROW,
-            'Defect Length Basis': 'Enter manually',
-            'Repair Group ID': 'R-BAD',
-            'Remaining Wall [mm]': None,
+            **_BASE_ROW,
+            'Prowrap CF Cloth Width 1 [mm]': 500.0,
         },
         {
-            **_DENT_ROW,
-            'Mechanism': 'Dent no-crack',
+            **_BASE_ROW,
+            'Pipe OD [mm]': None,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
         },
-        {**_DENT_ROW, 'Mechanism': 'Dent w/crack'},
+        {
+            **_BASE_ROW,
+            'Mechanism': 'Leak',
+            'Defect Length Basis': None,
+            'Design Pressure [bar]': 150.0,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
+        },
     )
 
 
 def _acceptance_details() -> tuple[dict[str, object], ...]:
-    return (
-        {
-            'Repair Group ID': 'R-001',
-            'Defect ID': 'D-01',
-            'Individual longitudinal length [mm]': 10.0,
-            'Remaining wall [mm]': 9.652,
-            'Separation exceeds 3t': 'Yes',
-        },
-        {
-            'Repair Group ID': 'R-001',
-            'Defect ID': 'D-02',
-            'Individual longitudinal length [mm]': 35.0,
-            'Remaining wall [mm]': 10.0,
-            'Separation exceeds 3t': 'Yes',
-        },
-        {
-            'Repair Group ID': 'R-BAD',
-            'Defect ID': 'D-BAD',
-            'Individual longitudinal length [mm]': 10.0,
-            'Remaining wall [mm]': 9.652,
-            'Separation exceeds 3t': 'No',
-        },
-    )
+    return ()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description='Create the six-row PROWRAP CalcBatch v1.2 acceptance workbook.',
+        description='Create the six-row PROWRAP CalcBatch v1.3 acceptance workbook.',
     )
     parser.add_argument('destination', type=Path, help='Path for the generated .xlsx workbook.')
     args = parser.parse_args()
