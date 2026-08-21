@@ -19,13 +19,21 @@
 - Temporary production-path verification: zero template/input formulas; 18 exact processed W/X/Z formulas; exact table/protection/validation/status/output/warning identities; re-upload parity with assumptions and Quantity preserved.
 - Temporary rendering: template and result each rendered to exactly eight pages; required content was extractable for every sheet and all eight processed pages were visually inspected.
 
-## Release boundary retained
+## Implementation release boundary retained
 
-No final artifact marker was run. No final template, acceptance, or result workbook was created in a release output location. No v1.2 file/repository/app was modified. No remote was added or contacted; no GitHub repository, push, PR, Streamlit app, deployment, reboot, or URL change was performed.
+The Task 4 implementation itself did not run the final artifact marker or
+create final workbooks in a release output location. No v1.2
+file/repository/app was modified. No remote was added or contacted; no GitHub
+repository, push, PR, Streamlit app, deployment, reboot, or URL change was
+performed.
 
-## Concern / controller handoff
+## Pre-artifact controller handoff (completed)
 
-The wide main/detail/Cost tables are necessarily compressed in one-page temporary LibreOffice print previews. The controller's dedicated spreadsheet artifact workflow must perform the final authoritative workbook rendering and artifact generation after review. Publication and deployment remain separately authorized future actions.
+The wide main/detail/Cost tables were necessarily compressed in one-page
+temporary LibreOffice print previews. The controller's dedicated spreadsheet
+artifact workflow was therefore required for authoritative final workbook
+rendering and generation; that workflow is now complete as recorded below.
+Publication and deployment remain separately authorized future actions.
 
 ## Final artifact-review fix: clipped Cost/Quantity instruction
 
@@ -47,5 +55,31 @@ or other row height changed.
 
 `PROVENANCE.json` now records the refreshed `workbook_template.py` SHA-256
 `fd04e0f8d8d77dadca14a38b7af4b0288ee5e2523dd79c50c06ee1f9623ef0b9`.
-The final artifact marker was not rerun, final workbook files were not touched,
-and no remote, deployment, v1.2 source, or public resource was changed.
+During this review fix, the final artifact marker was not rerun and final
+workbook files were not touched. No remote, deployment, v1.2 source, or public
+resource was changed.
+
+## Controller final artifact evidence
+
+The controller subsequently regenerated the authoritative final workbooks from
+artifact-review fix commit `c00e02d1c362571a96f7c54221c9fac83193647a` at
+fixed UTC `2026-08-21T12:00:00Z`, without rerunning the artifact marker:
+
+- `PROWRAP_CalcBatch_v1.3_Acceptance_Input.xlsx` — 51,305 bytes — SHA-256
+  `9f5059d259057257fe401ed9b04bd494e8ced0ad26959d1331efed98702a02bf`.
+- `PROWRAP_CalcBatch_v1.3_Acceptance_Processed.xlsx` — 53,876 bytes — SHA-256
+  `7144158686cd3e67774df5fb80e79c0a4997c974205f355ed6e158241cbac53c`.
+
+Final read-only inspection confirmed the exact eight sheets and hidden Lists,
+zero input formulas, exactly 18 processed W/X/Z formulas in rows 6–11, no
+formula-error matches, exact `A1:AE151` / `A1:X151` / `A5:Z11` table-filter
+pairs, correct protection and unlocked input/commercial/Quantity cells,
+`4 OK` / `1 INPUT ERROR` / `1 NOT REPAIRABLE`, literal mixed-width
+procurement/material outputs, Summary `1.3.0` / `da83373`, re-upload parity
+with only the designed B7 filename refresh, and Instructions row 11 at
+`64 pt`.
+
+Artifact-tool rendered all eight sheets in both final workbooks. All 16 renders
+were visually reviewed and found clean. The final full regression suite passed
+`325` tests. The workbook artifact workflow is complete; public repository and
+Streamlit publication remain outside this task.

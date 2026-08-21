@@ -50,11 +50,12 @@ python3 -m py_compile app.py scripts/create_acceptance_workbook.py workbook_temp
 git diff --check
 ```
 
-The fresh full suite passed:
+The final fresh full suite, after the Instructions row-height review fix,
+passed:
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
-324 passed in 74.43s
+325 passed in 78.29s
 ```
 
 ## Six-row acceptance reconciliation
@@ -99,6 +100,46 @@ Temporary template and processed render copies made Lists visible only for inspe
 
 `PROVENANCE.json` records the product and filename identity, exact accepted single-case commit, imported CalcBatch v1.2 baseline, Task 4 preparation base, accepted source-module hashes, active package-adapted engine hash, and hashes for the current app/schema/cost/generator/processor/template modules. Tests recompute current local module hashes and compare them with the manifest.
 
-## Remaining release work
+## Authoritative final release artifacts
 
-The controller must perform the dedicated final spreadsheet artifact marker/generation/render workflow after code review, then separately authorize any GitHub publication or Streamlit deployment. No public or final-artifact claim is made by this Task 4 verification.
+After the artifact-review fix commit
+`c00e02d1c362571a96f7c54221c9fac83193647a`, the controller regenerated the
+two final workbooks through the production generator and processor at fixed
+UTC `2026-08-21T12:00:00Z`. The spreadsheet artifact marker was not rerun.
+
+| Artifact | Size (bytes) | SHA-256 |
+|---|---:|---|
+| `/Users/can/Documents/Codex/2026-08-14/i/outputs/v13-release-artifacts/PROWRAP_CalcBatch_v1.3_Acceptance_Input.xlsx` | 51,305 | `9f5059d259057257fe401ed9b04bd494e8ced0ad26959d1331efed98702a02bf` |
+| `/Users/can/Documents/Codex/2026-08-14/i/outputs/v13-release-artifacts/PROWRAP_CalcBatch_v1.3_Acceptance_Processed.xlsx` | 53,876 | `7144158686cd3e67774df5fb80e79c0a4997c974205f355ed6e158241cbac53c` |
+
+The authoritative read-only artifact-tool inspection confirmed:
+
+- Exact eight-sheet order in both workbooks and hidden Lists.
+- Zero formulas in the acceptance input.
+- Exactly 18 processed formulas, confined to controlled W/X/Z cells in rows
+  6 through 11, with no formula-error matches.
+- Main, Individual Defects, and Cost table/filter pairs exactly
+  `A1:AE151`, `A1:X151`, and `A5:Z11`.
+- Controlled-sheet protection, unlocked two-width inputs, unlocked commercial
+  assumptions, and unlocked Quantity with formula/result cells locked.
+- Status totals `4 OK`, `0 REVIEW REQUIRED`, `1 NOT REPAIRABLE`,
+  `1 INPUT ERROR`, and `0 SYSTEM ERROR`.
+- Exact 500/300 counts, gross procurement, effective coverage, fabric area,
+  and epoxy literals documented in the six-row reconciliation above.
+- Summary Batch Engine `1.3.0` and accepted source revision `da83373`.
+- Processed-workbook re-upload parity for engineering results, warnings,
+  statuses, formulas, tables, and protections; only Summary B7 refreshed to
+  the current uploaded filename as designed.
+- Fixed Instructions row 11 at `64 pt` in both final workbooks.
+
+All eight sheets in each final workbook were rendered with artifact-tool. All
+16 renders were reviewed read-only and found clean: instruction 9 is fully
+visible, required labels and values are readable, and no critical clipping,
+formula error, unintended blank sheet, or release-layout defect remains.
+
+## Remaining publication boundary
+
+The authoritative workbook workflow is complete. GitHub publication and
+Streamlit deployment remain separately authorized future actions; no remote,
+deployment, public application, or CalcBatch v1.2 resource was changed by the
+artifact generation or this documentation update.
