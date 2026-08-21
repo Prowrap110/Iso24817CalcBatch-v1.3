@@ -148,7 +148,8 @@ def test_manual_adapter_returns_main_and_candidate_outputs():
             'Defect Length Basis': ENTER_MANUALLY,
             'Repair Group ID': 'R-001',
             'Remaining Wall [mm]': None,
-            'Prowrap CF Cloth Width [mm]': 500.0,
+            'Prowrap CF Cloth Width 1 [mm]': 500.0,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
             'Run Type A / Class 3 Check': 'Yes',
         }),
         individual_defects=(
@@ -203,7 +204,8 @@ def test_candidate_warning_codes_follow_the_ordered_candidate_trace():
             'Defect Length Basis': ENTER_MANUALLY,
             'Repair Group ID': 'R-001',
             'Remaining Wall [mm]': None,
-            'Prowrap CF Cloth Width [mm]': 500.0,
+            'Prowrap CF Cloth Width 1 [mm]': 500.0,
+            'Prowrap CF Cloth Width 2 [mm]': 500.0,
         }),
         individual_defects=(
             IndividualCorrosionDefect('D-01', 10.0, 9.652, True),
@@ -323,33 +325,79 @@ def test_not_repairable_blanks_installable_quantities():
 
     assert outcome.status.value == 'NOT REPAIRABLE'
     for heading in (
+        'Required Structural Thickness [mm]',
         'Installed Plies',
         'Installed Thickness [mm]',
+        'Total Repair Length [mm]',
+        '500 mm Cloth Band Count',
+        '300 mm Cloth Band Count',
+        'Procurement Axial Length [mm]',
         'Fabric Area [m2]',
         'Epoxy Mass [kg]',
     ):
         assert outcome.outputs[heading] is None
 
 
-def test_unapproved_cloth_width_calculates_but_requires_review():
+@pytest.mark.parametrize(('width_1', 'width_2', 'expected_counts', 'expected_length'), [
+    (300.0, 300.0, (0, 2), 600.0),
+    (500.0, 500.0, (1, 0), 500.0),
+    (300.0, 500.0, (1, 0), 500.0),
+    (500.0, 300.0, (1, 0), 500.0),
+])
+def test_adapter_maps_separate_band_counts_for_each_width_pair(
+    width_1, width_2, expected_counts, expected_length,
+):
     outcome = calculate_row(batch_info(), validated_row(**{
-        'Prowrap CF Cloth Width [mm]': 250.0,
-    }))
-
-    assert outcome.status.value == 'REVIEW REQUIRED'
-    assert outcome.outputs['Installed Plies'] == 3
-    assert outcome.outputs['Compliance Warnings'] == ('W018',)
-
-
-def test_500_mm_cloth_is_approved_and_uses_its_entered_procurement_width():
-    """Catches treating the approved 500 mm roll as a review-only configuration."""
-    outcome = calculate_row(batch_info(), validated_row(**{
-        'Prowrap CF Cloth Width [mm]': 500.0,
+        'Prowrap CF Cloth Width 1 [mm]': width_1,
+        'Prowrap CF Cloth Width 2 [mm]': width_2,
     }))
 
     assert outcome.status.value == 'OK'
     assert outcome.outputs['Compliance Warnings'] == ()
-    assert outcome.outputs['Procurement Axial Length [mm]'] == 500.0
+    assert (
+        outcome.outputs['500 mm Cloth Band Count'],
+        outcome.outputs['300 mm Cloth Band Count'],
+    ) == expected_counts
+    assert outcome.outputs['Procurement Axial Length [mm]'] == expected_length
+
+
+def test_width_availability_does_not_change_structural_or_classification_results():
+    structural_headings = (
+        'Wall Loss [%]',
+        'Required Structural Thickness [mm]',
+        'Installed Plies',
+        'Installed Thickness [mm]',
+        'Required Overlap [mm]',
+        'Taper Length [mm]',
+        'Total Repair Length [mm]',
+        'Repair Zone Length [mm]',
+        'B31G Detail',
+        'Type A Detail',
+        'Type B Detail',
+        'Compliance Warnings',
+    )
+    outcomes = tuple(
+        calculate_row(batch_info(), validated_row(**{
+            'Prowrap CF Cloth Width 1 [mm]': width_1,
+            'Prowrap CF Cloth Width 2 [mm]': width_2,
+        }))
+        for width_1, width_2 in (
+            (300.0, 300.0),
+            (500.0, 500.0),
+            (300.0, 500.0),
+            (500.0, 300.0),
+        )
+    )
+    expected = (
+        outcomes[0].status,
+        tuple(outcomes[0].outputs[heading] for heading in structural_headings),
+    )
+
+    for outcome in outcomes[1:]:
+        assert (
+            outcome.status,
+            tuple(outcome.outputs[heading] for heading in structural_headings),
+        ) == expected
 
 
 def test_temperature_above_qualification_limit_becomes_review_required():

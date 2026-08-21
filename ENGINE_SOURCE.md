@@ -1,4 +1,25 @@
-# Pinned calculation-engine source
+# Pinned CalcBatch v1.3 calculation-engine source
+
+## Accepted single-case v1.3 source
+
+CalcBatch v1.3 pins the reviewed standalone `Iso24817Calcv1.3` release commit
+`da83373d648694f50b8a974ff6071a73ceec2089`. The accepted source-module
+SHA-256 values are:
+
+- `band_procurement.py`: `ba5d67eba3be6502e4d3ddbf475ca0189b7a9660ba9508429d77498de240e0bc`
+- `prowrap_calculations.py`: `ea191add86766cd79fc5ec9f6e9deed8b950b1d66bd3318d89406c2846be9eca`
+- `prowrap_materials.py`: `213064ff8d1a7d06646b3172b90caa79704f11742cef0ad58dbfc3ecd101320e`
+
+The optimizer and material module are copied exactly. The calculation module
+is integrated into the `engine` package with relative imports and retains the
+documented CalcBatch-only high-temperature screening, zero-pressure Type B,
+and strict axial-load validation paths. Both active procurement call sites use
+the accepted `optimize_band_procurement` implementation; CalcBatch does not
+contain a second optimizer. The resulting package-adapted
+`engine/prowrap_calculations.py` SHA-256 is
+`1ffbbd7397aab134aad6461a042b18342d5b46c1e86d658215e05a616d23bcfe`.
+
+## Historical CalcBatch v1.2 provenance
 
 **CalcBatch release version:** `1.2.0`
 **Verified linked-corrosion source revision:** `91b68d64508a4786934f0e17f2aea0dbebf745a7` (`91b68d6` recorded in processed workbooks)

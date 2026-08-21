@@ -80,7 +80,10 @@ def _insert_after(
 
 
 INPUT_HEADERS = _insert_after(
-    LEGACY_INPUT_HEADERS,
+    LEGACY_INPUT_HEADERS[:-1] + (
+        'Prowrap CF Cloth Width 1 [mm]',
+        'Prowrap CF Cloth Width 2 [mm]',
+    ),
     'Defect Length [mm]',
     ('Defect Length Basis', 'Repair Group ID'),
 )
@@ -101,7 +104,8 @@ OUTPUT_HEADERS = (
     'Required Structural Thickness [mm]',
     'Installed Plies',
     'Total Repair Length [mm]',
-    'Cloth Band Count',
+    '500 mm Cloth Band Count',
+    '300 mm Cloth Band Count',
     'Procurement Axial Length [mm]',
     'Fabric Area [m2]',
     'Epoxy Mass [kg]',

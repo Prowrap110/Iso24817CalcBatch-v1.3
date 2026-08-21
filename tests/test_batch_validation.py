@@ -121,23 +121,44 @@ def test_internal_corrosion_requires_rate():
     assert [issue.code for issue in issues] == ['INTERNAL_CORROSION_RATE_REQUIRED']
 
 
-def test_cloth_width_at_stitch_overlap_is_rejected():
+@pytest.mark.parametrize(('width_1', 'width_2'), [
+    (300, 300),
+    (500, 500),
+    (300, 500),
+    (500, 300),
+])
+def test_dual_cloth_widths_accept_every_approved_availability_pair(
+    width_1, width_2,
+):
     row, issues = validate_row(2, valid_row_values(**{
-        'Prowrap CF Cloth Width [mm]': 50.0,
-    }))
-
-    assert row is None
-    assert [issue.code for issue in issues] == ['OUT_OF_RANGE']
-
-
-def test_unapproved_cloth_width_is_valid_for_later_review():
-    row, issues = validate_row(2, valid_row_values(**{
-        'Prowrap CF Cloth Width [mm]': 250.0,
+        'Prowrap CF Cloth Width 1 [mm]': width_1,
+        'Prowrap CF Cloth Width 2 [mm]': width_2,
     }))
 
     assert issues == ()
     assert row is not None
-    assert row.values['Prowrap CF Cloth Width [mm]'] == 250.0
+    assert row.values['Prowrap CF Cloth Width 1 [mm]'] == float(width_1)
+    assert row.values['Prowrap CF Cloth Width 2 [mm]'] == float(width_2)
+
+
+@pytest.mark.parametrize('header', [
+    'Prowrap CF Cloth Width 1 [mm]',
+    'Prowrap CF Cloth Width 2 [mm]',
+])
+@pytest.mark.parametrize(('value', 'expected_code'), [
+    (None, 'REQUIRED_VALUE'),
+    ('', 'REQUIRED_VALUE'),
+    (250, 'INVALID_SELECTION'),
+    (True, 'INVALID_NUMBER'),
+    ('wide', 'INVALID_NUMBER'),
+])
+def test_dual_cloth_widths_reject_blank_unapproved_boolean_and_nonnumeric_values(
+    header, value, expected_code,
+):
+    row, issues = validate_row(2, valid_row_values(**{header: value}))
+
+    assert row is None
+    assert [issue.code for issue in issues] == [expected_code]
 
 
 @pytest.mark.parametrize('value', [math.nan, math.inf, -math.inf, True])

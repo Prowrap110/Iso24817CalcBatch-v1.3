@@ -24,34 +24,52 @@ def test_batch_info_holds_three_common_values():
     assert info.report_no == 'R-100'
 
 
-def test_v12_inputs_insert_basis_and_group_after_defect_length():
+def test_v13_inputs_have_exact_dual_width_contract():
     from batch_schema import MAX_DETAIL_ROWS
 
-    start = INPUT_HEADERS.index('Defect Length [mm]')
-
-    assert INPUT_HEADERS[start:start + 4] == (
+    assert INPUT_HEADERS == (
+        'Pipe OD [mm]',
+        'Nominal Wall [mm]',
+        'Pipe Yield [MPa]',
+        'Design Pressure [bar]',
+        'Operating Temperature [degC]',
+        'Mechanism',
+        'Defect Location',
         'Defect Length [mm]',
         'Defect Length Basis',
         'Repair Group ID',
         'Remaining Wall [mm]',
+        'Internal Corrosion Rate [mm/year]',
+        'Design Life [years]',
+        'Design Factor',
+        'Run Type A / Class 3 Check',
+        'Installation Temperature [degC]',
+        'Component Type',
+        'Cyclic Derating Factor',
+        'Axial Load Case',
+        'Prowrap CF Cloth Width 1 [mm]',
+        'Prowrap CF Cloth Width 2 [mm]',
     )
+    assert len(INPUT_HEADERS) == 21
     assert MAX_ROWS == 150
     assert MAX_DETAIL_ROWS == 150
 
 
-def test_current_outputs_keep_legacy_outputs_and_add_linked_corrosion_results():
+def test_v13_outputs_have_exact_separate_band_count_contract():
     """Catches diagnostic workbook columns escaping the compact public contract."""
     assert OUTPUT_HEADERS == (
         'Wall Loss [%]',
         'Required Structural Thickness [mm]',
         'Installed Plies',
         'Total Repair Length [mm]',
-        'Cloth Band Count',
+        '500 mm Cloth Band Count',
+        '300 mm Cloth Band Count',
         'Procurement Axial Length [mm]',
         'Fabric Area [m2]',
         'Epoxy Mass [kg]',
         'Repair Zone Length [mm]',
     )
+    assert len(OUTPUT_HEADERS) == 10
 
 
 def test_detail_outputs_hold_the_complete_scalar_b31g_candidate_audit():

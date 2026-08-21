@@ -34,7 +34,8 @@ def valid_row_values(**overrides):
         'Component Type': 'Straight',
         'Cyclic Derating Factor': 1.0,
         'Axial Load Case': 0,
-        'Prowrap CF Cloth Width [mm]': 300.0,
+        'Prowrap CF Cloth Width 1 [mm]': 300.0,
+        'Prowrap CF Cloth Width 2 [mm]': 300.0,
     }
     values.update(overrides)
     if (
